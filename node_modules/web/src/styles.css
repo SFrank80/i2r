@@ -1,0 +1,101 @@
+/* ---- Base + layout ----- */
+:root{
+  --bg:#f5f7fb;
+  --card:#ffffff;
+  --ink:#111827;
+  --muted:#6b7280;
+  --border:#e5e7eb;
+  --accent:#111827;
+  --accent-ink:#ffffff;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* centers everything and constrains width */
+.page {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.container {
+  width: min(1100px, 100%);
+  padding: 20px;
+}
+
+/* ---- card look ---- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+/* ---- inputs ---- */
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 720px) {
+  .row { grid-template-columns: 1fr; }
+}
+.input, .select, .textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+/* ---- button ---- */
+.btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ---- list ---- */
+.tableWrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.table thead th {
+  background: #f8fafc;
+  text-align: left;
+  font-weight: 600;
+}
+
+/* action buttons look like before */
+.actions .btn {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+  padding: 6px 10px;
+}
+
+/* small helper */
+.muted { color: var(--muted); }
+.toolbar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 8px 0 12px;
+}
+@media (max-width: 800px){
+  .toolbar { grid-template-columns: 1fr 1fr; }
+}

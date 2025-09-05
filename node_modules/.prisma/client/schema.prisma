@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DISPATCHER
+  FIELDTECH
+  VIEWER
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum WorkOrderStatus {
+  NEW
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+model User {
+  id         Int         @id @default(autoincrement())
+  email      String      @unique
+  name       String?
+  role       Role        @default(VIEWER)
+  createdAt  DateTime    @default(now())
+  incidents  Incident[]  @relation("ReporterIncidents")
+  workOrders WorkOrder[] @relation("AssigneeWorkOrders")
+}
+
+model Asset {
+  id         Int         @id @default(autoincrement())
+  type       String
+  name       String
+  status     String
+  lon        Float
+  lat        Float
+  createdAt  DateTime    @default(now())
+  incidents  Incident[]
+  workOrders WorkOrder[]
+}
+
+model Incident {
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String
+  priority    Priority       @default(MEDIUM)
+  status      IncidentStatus @default(OPEN)
+  reporterId  Int
+  reporter    User           @relation("ReporterIncidents", fields: [reporterId], references: [id])
+  assetId     Int?
+  asset       Asset?         @relation(fields: [assetId], references: [id])
+  lon         Float
+  lat         Float
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  workOrders  WorkOrder[]
+}
+
+model WorkOrder {
+  id          Int             @id @default(autoincrement())
+  incidentId  Int
+  incident    Incident        @relation(fields: [incidentId], references: [id])
+  assetId     Int?
+  asset       Asset?          @relation(fields: [assetId], references: [id])
+  assigneeId  Int?
+  assignee    User?           @relation("AssigneeWorkOrders", fields: [assigneeId], references: [id])
+  status      WorkOrderStatus @default(NEW)
+  slaDueAt    DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+}
