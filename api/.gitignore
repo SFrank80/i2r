@@ -1,5 +1,29 @@
-node_modules
-# Keep environment variables out of version control
-.env
+# Node / workspace
+node_modules/
+npm-debug.log*
+yarn.lock
+pnpm-lock.yaml
 
-/src/generated/prisma
+# Build artifacts
+dist/
+build/
+.esbuild/
+.vite/
+*.tsbuildinfo
+
+# Env & local DBs
+.env
+.env.*
+api/.env
+api/prisma/dev.db*
+api/prisma/*.db
+api/prisma/*.db-*
+api/prisma/*.sqlite
+api/prisma/*.sqlite-*
+api/prisma/.env
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
