@@ -1,101 +1,49 @@
-/* ---- Base + layout ----- */
+/* FILE: web/src/styles.css */
 :root{
+  --md-blue:#003B5C; /* maryland blue */
+  --md-gold:#F0B323; /* maryland gold */
   --bg:#f5f7fb;
   --card:#ffffff;
   --ink:#111827;
   --muted:#6b7280;
   --border:#e5e7eb;
-  --accent:#111827;
-  --accent-ink:#ffffff;
 }
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
 
-* { box-sizing: border-box; }
-html, body, #root { height: 100%; }
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-}
+.md-page{padding:24px 16px}
+.md-container{max-width:1100px;margin:0 auto}
+.md-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.md-header h2{margin:0;color:var(--md-blue)}
 
-/* centers everything and constrains width */
-.page {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-}
-.container {
-  width: min(1100px, 100%);
-  padding: 20px;
-}
+.md-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.06)}
+.md-tableWrap{overflow:auto;border:1px solid var(--border);border-radius:8px}
+.md-table{width:100%;border-collapse:collapse}
+.md-table th,.md-table td{padding:10px;border-bottom:1px solid var(--border);text-align:left}
+.md-table tbody tr:nth-child(odd){background:#fafafa}
+.md-actionsCol{white-space:nowrap;width:1%;text-align:right}
 
-/* ---- card look ---- */
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
+.md-label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}
+.md-input,.md-select,textarea{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff}
+.md-field{display:flex;flex-direction:column}
+.md-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:12px}
+.md-wide{grid-column:1/-1}
+.md-rowRight{display:flex;justify-content:flex-end}
 
-/* ---- inputs ---- */
-.row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-@media (max-width: 720px) {
-  .row { grid-template-columns: 1fr; }
-}
-.input, .select, .textarea {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fff;
-}
+.md-btn{padding:8px 12px;border-radius:10px;border:1px solid transparent;cursor:pointer;transition:filter .15s ease}
+.md-btn:hover{filter:brightness(.98)}
+.md-btn-primary{background:var(--md-gold);color:#2b2b2b}
+.md-btn-outline{background:#fff;border-color:var(--border);}
 
-/* ---- button ---- */
-.btn {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--accent-ink);
-  cursor: pointer;
-}
-.btn:disabled { opacity: .6; cursor: not-allowed; }
+.md-sectionTitle{margin:0 0 12px 0;color:var(--md-blue)}
 
-/* ---- list ---- */
-.tableWrap { overflow-x: auto; }
-.table { width: 100%; border-collapse: collapse; }
-.table th, .table td {
-  padding: 10px;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-.table thead th {
-  background: #f8fafc;
-  text-align: left;
-  font-weight: 600;
-}
+.md-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid rgba(0,0,0,.06)}
+.md-low{background:#e9f6ec;color:#166534}
+.md-medium{background:#e6f0ff;color:#1d4ed8}
+.md-high{background:#fff3cd;color:#b45309}
+.md-critical{background:#fee2e2;color:#b91c1c}
 
-/* action buttons look like before */
-.actions .btn {
-  background: #111827;
-  border-color: #111827;
-  color: #fff;
-  padding: 6px 10px;
-}
-
-/* small helper */
-.muted { color: var(--muted); }
-.toolbar {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(160px, 1fr));
-  gap: 12px;
-  margin: 8px 0 12px;
-}
-@media (max-width: 800px){
-  .toolbar { grid-template-columns: 1fr 1fr; }
+@media (max-width:760px){
+  .md-grid{grid-template-columns:1fr}
 }

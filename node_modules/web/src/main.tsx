@@ -1,10 +1,11 @@
+// web/src/main.tsx
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
-import "./styles.css";  // <-- make sure this import exists
+import IncidentFormPage from "./components/incidentform";   // <— THIS file
+import "./styles.css";                           // keep styles separate
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <IncidentFormPage />
   </React.StrictMode>
 );

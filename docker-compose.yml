@@ -1,23 +1,25 @@
+# docker-compose.yml (root)
+
 services:
   db:
     image: postgis/postgis:16-3.4
-    container_name: i2r-postgres
     environment:
       POSTGRES_USER: i2r
       POSTGRES_PASSWORD: i2rpass
       POSTGRES_DB: i2r
     ports:
       - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U i2r -d i2r"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
 
   adminer:
-    image: adminer:latest
-    container_name: i2r-adminer
+    image: adminer
     depends_on:
       - db
+    environment:
+      ADMINER_DEFAULT_SERVER: db
     ports:
       - "8080:8080"
+
+volumes:
+  pgdata:

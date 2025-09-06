@@ -1,215 +1,270 @@
-// web/src/components/incidentform.tsx
-import { useState } from "react";
-import {
-  createIncident,
-  updateIncident,
-  type Incident,
-  type Priority,
-  type IncidentStatus,
-} from "../api";
+// FILE: web/src/incidentform.tsx
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import AssignAssetModal from "./assignassetmodal";
+import { listIncidents, updateIncident, createIncident } from "../api/incidents";
+import type { Incident } from "../api/incidents";
+import { Toaster, toast } from "react-hot-toast";
 
-type Props = {
-  onCreated?: (incident: Incident) => void;
-};
-
-const PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+// Local enums for UI
+export type IncidentStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+export type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 const STATUSES: IncidentStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
+const PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
-export default function IncidentForm({ onCreated }: Props) {
+function toNum(v: string): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+export default function IncidentFormPage() {
+  // list
+  const [items, setItems] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // assign modal
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignFor, setAssignFor] = useState<{ id: number; assetId: number | null } | null>(null);
+
+  // create form
   const [title, setTitle] = useState("");
-  const [lon, setLon] = useState<string>("");
-  const [lat, setLat] = useState<string>("");
   const [priority, setPriority] = useState<Priority>("MEDIUM");
   const [status, setStatus] = useState<IncidentStatus>("OPEN");
+  const [lon, setLon] = useState("");
+  const [lat, setLat] = useState("");
   const [description, setDescription] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  function toNum(v: string): number | null {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const res: { items: Incident[] } = await listIncidents({ page: 1, pageSize: 20 });
+        setItems(res.items ?? []);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  function openAssign(it: Incident) {
+    setAssignFor({ id: it.id, assetId: it.assetId ?? null });
+    setAssignOpen(true);
   }
 
-  async function submit(e: React.FormEvent) {
+  async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    setError(null);
-
-    if (!title.trim()) {
-      setError("Title is required");
-      return;
-    }
     const lonNum = toNum(lon);
     const latNum = toNum(lat);
+    if (!title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
     if (lonNum === null || latNum === null) {
-      setError("Longitude and Latitude must be valid numbers");
+      toast.error("Longitude/Latitude must be valid numbers");
       return;
     }
 
-    setBusy(true);
     try {
-      // 1) Create with allowed fields only
       const created = await createIncident({
         title: title.trim(),
-        lon: lonNum,
-        lat: latNum,
         description: description.trim() || undefined,
         priority,
+        status,
+        lon: lonNum,
+        lat: latNum,
       });
 
-      // 2) If user chose a status other than OPEN, update right away
-      let finalIncident = created;
-      if (status !== "OPEN") {
-        finalIncident = await updateIncident(created.id, { status });
-      }
-
-      // reset form
+      setItems((prev) => [{ ...created, assetId: created.assetId ?? null }, ...prev]);
       setTitle("");
-      setLon("");
-      setLat("");
       setDescription("");
       setPriority("MEDIUM");
       setStatus("OPEN");
-
-      onCreated?.(finalIncident);
-    } catch (err: unknown) {
-      if (err && typeof err === "object" && "message" in err) {
-        setError(String((err as { message?: string }).message) || "Create failed");
-      } else {
-        setError("Create failed");
-      }
-    } finally {
-      setBusy(false);
+      setLon("");
+      setLat("");
+      toast.success("Incident created");
+    } catch {
+      toast.error("Failed to create incident");
     }
   }
 
   return (
-    <form onSubmit={submit} style={box}>
-      <div style={row}>
-        <label style={label} htmlFor="inc-title">Title*</label>
-        <input
-          id="inc-title"
-          style={input}
-          placeholder="Short summary"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required
+    <div className="md-page">
+      <div className="md-container">
+        <header className="md-header">
+          <h2>Incidents</h2>
+        </header>
+
+        {/* Create Incident (TOP) */}
+        <div className="md-card" style={{ marginBottom: 16 }}>
+          <h3 className="md-sectionTitle">Create Incident</h3>
+          <form className="md-grid" onSubmit={handleCreate}>
+            <label className="md-field">
+              <span className="md-label">Title</span>
+              <input
+                className="md-input"
+                value={title}
+                required
+                placeholder="Short incident title"
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </label>
+
+            <label className="md-field">
+              <span className="md-label">Priority</span>
+              <select
+                className="md-select"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as Priority)}
+              >
+                {PRIORITIES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="md-field">
+              <span className="md-label">Status</span>
+              <select
+                className="md-select"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as IncidentStatus)}
+              >
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="md-field">
+              <span className="md-label">Longitude</span>
+              <input
+                className="md-input"
+                value={lon}
+                required
+                placeholder="-76.6122"
+                onChange={(e) => setLon(e.target.value)}
+              />
+            </label>
+
+            <label className="md-field">
+              <span className="md-label">Latitude</span>
+              <input
+                className="md-input"
+                value={lat}
+                required
+                placeholder="39.2904"
+                onChange={(e) => setLat(e.target.value)}
+              />
+            </label>
+
+            <label className="md-field md-wide">
+              <span className="md-label">Description</span>
+              <textarea
+                className="md-input"
+                rows={2}
+                placeholder="Optional details…"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </label>
+
+            <div className="md-rowRight">
+              <button type="submit" className="md-btn md-btn-primary">
+                Create incident
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Table */}
+        <div className="md-card">
+          <div className="md-tableWrap">
+            <table className="md-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Asset</th>
+                  <th className="md-actionsCol">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr>
+                    <td colSpan={6}>Loading…</td>
+                  </tr>
+                )}
+                {!loading && items.length === 0 && (
+                  <tr>
+                    <td colSpan={6}>No incidents</td>
+                  </tr>
+                )}
+                {!loading &&
+                  items.map((it) => (
+                    <tr key={it.id}>
+                      <td>{it.id}</td>
+                      <td>{it.title}</td>
+                      <td>
+                        <span className={`md-badge md-${it.priority.toLowerCase()}`}>{it.priority}</span>
+                      </td>
+                      <td>
+                        <select
+                          className="md-select"
+                          value={it.status}
+                          onChange={async (e: ChangeEvent<HTMLSelectElement>) => {
+                            const s = e.target.value as IncidentStatus;
+                            try {
+                              await updateIncident(it.id, { status: s } as Partial<Incident>);
+                              setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, status: s } : x)));
+                              toast.success("Status updated");
+                            } catch {
+                              toast.error("Update failed");
+                            }
+                          }}
+                        >
+                          {STATUSES.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>{it.assetId ?? "-"}</td>
+                      <td className="md-actionsCol">
+                        <button className="md-btn md-btn-outline" onClick={() => openAssign(it)}>
+                          Assign asset
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <AssignAssetModal
+          open={assignOpen}
+          incidentId={assignFor?.id ?? 0}
+          currentAssetId={assignFor?.assetId ?? null}
+          onClose={() => setAssignOpen(false)}
+          onAssign={async (assetId: number | null) => {
+            if (!assignFor) return;
+            try {
+              await updateIncident(assignFor.id, { assetId } as Partial<Incident>);
+              setItems((prev) => prev.map((x) => (x.id === assignFor.id ? { ...x, assetId: assetId ?? null } : x)));
+              toast.success(assetId ? `Assigned #${assetId}` : "Asset unassigned");
+            } catch {
+              toast.error("Failed to assign");
+            }
+          }}
         />
       </div>
-
-      <div style={row}>
-        <label style={label} htmlFor="inc-lon">Longitude*</label>
-        <input
-          id="inc-lon"
-          style={input}
-          placeholder="-77.04"
-          inputMode="decimal"
-          value={lon}
-          onChange={(e) => setLon(e.target.value)}
-          required
-        />
-        <label style={{ ...label, marginLeft: 12 }} htmlFor="inc-lat">Latitude*</label>
-        <input
-          id="inc-lat"
-          style={input}
-          placeholder="39.04"
-          inputMode="decimal"
-          value={lat}
-          onChange={(e) => setLat(e.target.value)}
-          required
-        />
-      </div>
-
-      <div style={row}>
-        <label style={label} htmlFor="inc-priority">Priority*</label>
-        <select
-          id="inc-priority"
-          style={input}
-          value={priority}
-          onChange={(e) => setPriority(e.target.value as Priority)}
-        >
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-
-        <label style={{ ...label, marginLeft: 12 }} htmlFor="inc-status">Status</label>
-        <select
-          id="inc-status"
-          style={input}
-          value={status}
-          onChange={(e) => setStatus(e.target.value as IncidentStatus)}
-        >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div style={row}>
-        <label style={label} htmlFor="inc-desc">Description</label>
-        <textarea
-          id="inc-desc"
-          style={{ ...input, height: 70 }}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Optional details…"
-        />
-      </div>
-
-      {error && <div style={{ color: "#b30000", marginBottom: 8 }}>{error}</div>}
-
-      <button type="submit" disabled={busy} style={button}>
-        {busy ? "Creating..." : "Create Incident"}
-      </button>
-    </form>
+      <Toaster position="top-right" />
+    </div>
   );
 }
-
-/* ---------- styles (scoped to this file) ---------- */
-const box: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 10,
-  padding: 16,
-  marginBottom: 16,
-  background: "linear-gradient(180deg, #ffffff, #fafafa)",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-};
-
-const row: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  marginBottom: 10,
-  flexWrap: "wrap",
-};
-
-const label: React.CSSProperties = {
-  width: 100,
-  minWidth: 80,
-  color: "#374151",
-  fontSize: 14,
-  fontWeight: 500,
-};
-
-const input: React.CSSProperties = {
-  flex: 1,
-  minWidth: 180,
-  padding: "8px 10px",
-  border: "1px solid #d1d5db",
-  borderRadius: 8,
-  outline: "none",
-  background: "#fff",
-};
-
-const button: React.CSSProperties = {
-  padding: "8px 14px",
-  borderRadius: 8,
-  border: "1px solid #111827",
-  background: "#111827",
-  color: "white",
-  cursor: "pointer",
-};
