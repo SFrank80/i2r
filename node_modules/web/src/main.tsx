@@ -1,11 +1,11 @@
-// web/src/main.tsx
+// FILE: web/src/main.tsx
 import React from "react";
 import ReactDOM from "react-dom/client";
-import IncidentFormPage from "./components/incidentform";   // <— THIS file
-import "./styles.css";                           // keep styles separate
+import IncidentForm from "./components/incidentform";
+import "./styles.css"; // <- DON'T remove — restores the UI look
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <IncidentFormPage />
+    <IncidentForm />
   </React.StrictMode>
 );

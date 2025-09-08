@@ -1,14 +1,28 @@
-// api/src/validators.ts
+// FILE: api/src/validators.ts
 import { z } from "zod";
 
+// enums used across API
+export const IncidentPriority = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
+export const IncidentStatus   = z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]);
+
+// POST /incidents
 export const createIncidentSchema = z.object({
-  title: z.string().min(3, "title must be at least 3 chars"),
-  description: z.string().default(""),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).default("MEDIUM"),
-  reporterId: z.number().int().positive().default(1),
-  assetId: z.number().int().positive().optional(),
-  lon: z.number().min(-180).max(180),
-  lat: z.number().min(-90).max(90)
+  title: z.string().min(1),
+  description: z.string().optional().nullable(),
+  priority: IncidentPriority,
+  status: IncidentStatus,                 // <- include status
+  lon: z.number(),
+  lat: z.number(),
+  assetId: z.number().int().positive().optional().nullable(),
 });
 
-export type CreateIncidentInput = z.infer<typeof createIncidentSchema>;
+// PATCH /incidents/:id  (everything optional)
+export const updateIncidentSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional().nullable(),
+  priority: IncidentPriority.optional(),
+  status: IncidentStatus.optional(),
+  assetId: z.number().int().positive().nullable().optional(),
+  lon: z.number().optional(),
+  lat: z.number().optional(),
+});

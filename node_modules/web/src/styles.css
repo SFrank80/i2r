@@ -1,49 +1,174 @@
-/* FILE: web/src/styles.css */
+/* ===== Maryland.gov–inspired theme ===== */
 :root{
-  --md-blue:#003B5C; /* maryland blue */
-  --md-gold:#F0B323; /* maryland gold */
+  --md-blue:#003B5C;     /* primary navy */
+  --md-gold:#F0B323;     /* accent gold  */
   --bg:#f5f7fb;
   --card:#ffffff;
   --ink:#111827;
   --muted:#6b7280;
   --border:#e5e7eb;
+  --font: #070707;
 }
-*{box-sizing:border-box}
-html,body,#root{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
 
-.md-page{padding:24px 16px}
-.md-container{max-width:1100px;margin:0 auto}
-.md-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-.md-header h2{margin:0;color:var(--md-blue)}
-
-.md-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.06)}
-.md-tableWrap{overflow:auto;border:1px solid var(--border);border-radius:8px}
-.md-table{width:100%;border-collapse:collapse}
-.md-table th,.md-table td{padding:10px;border-bottom:1px solid var(--border);text-align:left}
-.md-table tbody tr:nth-child(odd){background:#fafafa}
-.md-actionsCol{white-space:nowrap;width:1%;text-align:right}
-
-.md-label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}
-.md-input,.md-select,textarea{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff}
-.md-field{display:flex;flex-direction:column}
-.md-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:12px}
-.md-wide{grid-column:1/-1}
-.md-rowRight{display:flex;justify-content:flex-end}
-
-.md-btn{padding:8px 12px;border-radius:10px;border:1px solid transparent;cursor:pointer;transition:filter .15s ease}
-.md-btn:hover{filter:brightness(.98)}
-.md-btn-primary{background:var(--md-gold);color:#2b2b2b}
-.md-btn-outline{background:#fff;border-color:var(--border);}
-
-.md-sectionTitle{margin:0 0 12px 0;color:var(--md-blue)}
-
-.md-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid rgba(0,0,0,.06)}
-.md-low{background:#e9f6ec;color:#166534}
-.md-medium{background:#e6f0ff;color:#1d4ed8}
-.md-high{background:#fff3cd;color:#b45309}
-.md-critical{background:#fee2e2;color:#b91c1c}
-
-@media (max-width:760px){
-  .md-grid{grid-template-columns:1fr}
+*{ box-sizing:border-box }
+html,body,#root{ height:100% }
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color:var(--ink);
+  background:var(--bg);
 }
+
+/* Page container */
+.md-page{
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+/* Top header (page title row) */
+.md-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:12px;
+}
+.md-header h1{
+  margin: 0;
+  color:var(--md-blue);
+  font-weight:700;
+}
+
+/* ✅ Remove the large "Incidents" title at the very top only */
+.md-page > .md-header h1{ display:none; }
+
+/* Cards */
+.md-card{
+  background:var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.06);
+}
+
+/* Form grid */
+.md-grid{
+  display:grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 12px;
+}
+.md-col-12{ grid-column: span 12 }
+.md-col-6 { grid-column: span 6 }
+.md-col-4 { grid-column: span 4 }
+.md-col-3 { grid-column: span 3 }
+
+@media (max-width: 900px){
+  .md-col-6,.md-col-4,.md-col-3{ grid-column: span 12 }
+}
+
+/* Fields */
+.md-field label{
+  display:block;
+  color: var(--font);
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+/* Only the Title field */
+.md-title .md-input { max-width: 600px; }   /* or width: 600px; */
+
+.md-input, .md-select, .md-textarea{
+  width: 130%;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background:#fff;
+  outline:none;
+}
+.md-textarea{ min-height: 80px; resize: vertical; }
+
+/* Buttons row under the create form */
+.md-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap: 16px;                 /* ✅ a bit more space between buttons */
+  margin-top: 14px;          /* ✅ slight breathing room above buttons */
+}
+
+/* Buttons */
+.btn{
+  appearance: none;
+  display:inline-flex; align-items:center; justify-content:center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #b68910; /* visible border for accessibility */
+  background: var(--md-gold);
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform .02s ease-in, background .15s ease-in, border-color .15s ease-in,
+}
+.btn:focus {
+  outline: 2px solid #003B5C; /* high-contrast focus ring */
+  outline-offset: 2px;
+  border-color: #003B5C;
+}
+
+.btn:hover { background: #f3f4f6; border-color: #d1d5db; }
+.btn:active { transform: translateY(1px) }
+
+.btn-primary {
+  background: var(--md-gold);
+  border-color: #e19c0a;
+  color: #1a1a1a;
+}
+
+.btn-primary:hover { background: #f3bf4c; }
+
+.btn-navy {
+  background: var(--md-blue);
+  border-color: #012f48;
+  color: #fff;
+}
+.btn-navy:hover { background: #03476d; }
+
+.btn:disabled{
+  opacity:.65;
+  cursor:not-allowed;
+}
+
+/* Incidents section header with Refresh aligned right */
+.md-list-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin: 10px 0 6px;
+}
+
+/* Table */
+.md-table{
+  width: 100%;
+  border-collapse: collapse;
+}
+.md-table th,.md-table td{
+  padding: 10px;
+  border-bottom: 1px solid #f2f2f2;
+  text-align:left;
+}
+.md-table th{ color:var(--muted); font-size:12px; }
+.md-row{ background:#fff }
+.md-row:hover{ background:#fafafa }
+
+/* Badges */
+.badge{
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 14px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background:#f9fafb;
+}
+.badge.low{    background:#e8f5e9 }
+.badge.medium{ background:#e3f2fd }
+.badge.high{   background:#fff7ed }
+.badge.critical{background:#fee2e2; border-color:#fecaca}

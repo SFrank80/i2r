@@ -1,63 +1,60 @@
+// api/src/index.ts
 import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-import { z, ZodError } from "zod";
-import { prisma } from "./db"; // expects api/src/db.ts exporting `prisma`
+import { ZodError } from "zod";
+import { prisma } from "./db";
+import { createIncidentSchema } from "./validators";
+import type { Prisma } from "@prisma/client";
 
-// ----------------------------------------------------------------------------
-// App bootstrap
-// ----------------------------------------------------------------------------
-const app = express();
-app.use(cors({ origin: ["http://localhost:5173"], credentials: false }));
-app.use(express.json());
+// ---- helpers ---------------------------------------------------------------
 
-// ----------------------------------------------------------------------------
-// Zod enums & schemas (local to this file for clarity)
-// ----------------------------------------------------------------------------
-const Priority = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
-const IncidentStatus = z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]);
+function toInt(v: unknown, d: number) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : d;
+}
 
-const CreateIncidentSchema = z.object({
-  title: z.string().min(1).max(255),
-  description: z.string().max(10_000).optional().nullable(),
-  priority: Priority,
-  status: IncidentStatus,
-  lon: z.number(),
-  lat: z.number(),
-  assetId: z.number().int().positive().optional().nullable(),
-  // Clients normally do not send this; we allow it, but the server will set a default
-  reporterId: z.number().int().positive().optional(),
-});
+// Build a safe Prisma filter for string searches
+const INSENSITIVE: Prisma.QueryMode = "insensitive";
 
-const PatchIncidentSchema = z.object({
-  title: z.string().min(1).max(255).optional(),
-  description: z.string().max(10_000).optional().nullable(),
-  priority: Priority.optional(),
-  status: IncidentStatus.optional(),
-  lon: z.number().optional(),
-  lat: z.number().optional(),
-  assetId: z.number().int().positive().nullable().optional(),
-});
+function assetWhere(q?: string): Prisma.AssetWhereInput {
+  if (!q || !q.trim()) return {};
+  return {
+    OR: [
+      { name: { contains: q, mode: INSENSITIVE } },
+      { type: { contains: q, mode: INSENSITIVE } },
+    ],
+  };
+}
 
-// ----------------------------------------------------------------------------
-// RBAC helper (header x-user-role)
-// ----------------------------------------------------------------------------
-function requireRole(...roles: Array<"ADMIN" | "DISPATCHER" | "FIELDTECH">) {
+function incidentWhere(q?: string): Prisma.IncidentWhereInput {
+  if (!q || !q.trim()) return {};
+  return {
+    OR: [
+      { title: { contains: q, mode: INSENSITIVE } },
+      { description: { contains: q, mode: INSENSITIVE } },
+    ],
+  };
+}
+
+// Very small role check used by POST/PATCH endpoints
+function requireRole(...roles: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const role = String(req.header("x-user-role") ?? "VIEWER").toUpperCase();
-    if (!roles.includes(role as any)) {
-      return res
-        .status(403)
-        .json({ error: "forbidden", message: `role ${role} cannot perform this action` });
+    const role = String(req.header("x-user-role") ?? "").toUpperCase();
+    if (!roles.includes(role)) {
+      return res.status(403).json({ error: "forbidden" });
     }
-    (req as any).role = role;
     next();
   };
 }
 
-// ----------------------------------------------------------------------------
-// Routes
-// ----------------------------------------------------------------------------
+// ---- app -------------------------------------------------------------------
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// health + tiny diag
 app.get("/health", (_req, res) => res.send("ok"));
 
 app.get("/__diag", async (_req, res, next) => {
@@ -72,123 +69,32 @@ app.get("/__diag", async (_req, res, next) => {
   }
 });
 
-// List incidents (filters + paging)
-app.get("/incidents", async (req, res, next) => {
-  try {
-    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
-    const pageSize = Math.min(100, Math.max(1, parseInt(String(req.query.pageSize ?? "20"), 10)));
-    const q = (req.query.q as string | undefined)?.trim();
-    const status = req.query.status as z.infer<typeof IncidentStatus> | undefined;
-    const priority = req.query.priority as z.infer<typeof Priority> | undefined;
+// ---- ASSETS (list) ---------------------------------------------------------
 
-    const where: any = {};
-    if (status) where.status = status;
-    if (priority) where.priority = priority;
-    if (q) where.OR = [
-      { title: { contains: q, mode: "insensitive" } },
-      { description: { contains: q, mode: "insensitive" } },
-    ];
-
-    const [items, total] = await Promise.all([
-      prisma.incident.findMany({
-        where,
-        orderBy: { id: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      prisma.incident.count({ where }),
-    ]);
-
-    res.json({ page, pageSize, total, items });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Create incident (adds reporterId to satisfy Prisma IncidentCreateInput)
-app.post("/incidents", requireRole("DISPATCHER", "FIELDTECH"), async (req, res, next) => {
-  try {
-    const parsed = CreateIncidentSchema.parse(req.body);
-
-    // If caller provided header x-user-id, use it; else default to 1
-    const headerUser = Number(req.header("x-user-id"));
-    const reporterId = Number.isFinite(headerUser)
-      ? headerUser
-      : parsed.reporterId ?? 1; // fallback to 1 if neither header nor body provided
-
-    const created = await prisma.incident.create({
-      data: {
-        title: parsed.title,
-        description: parsed.description ?? null,
-        priority: parsed.priority,
-        status: parsed.status,
-        lon: parsed.lon,
-        lat: parsed.lat,
-        assetId: parsed.assetId ?? null,
-        reporterId, // ✅ required by IncidentCreateInput
-      },
-    });
-
-    res.status(201).json(created);
-  } catch (err) {
-    if (err instanceof ZodError) {
-      return res.status(400).json({ error: "validation_error", issues: err.issues });
-    }
-    next(err);
-  }
-});
-
-// Patch incident
-app.patch("/incidents/:id", async (req, res, next) => {
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid_id" });
-
-  const parsed = PatchIncidentSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res
-      .status(400)
-      .json({ error: "validation_error", issues: parsed.error.issues });
-  }
-
-  try {
-    const updated = await prisma.incident.update({
-      where: { id },
-      data: {
-        ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
-        ...(parsed.data.description !== undefined ? { description: parsed.data.description } : {}),
-        ...(parsed.data.priority !== undefined ? { priority: parsed.data.priority } : {}),
-        ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
-        ...(parsed.data.lon !== undefined ? { lon: parsed.data.lon } : {}),
-        ...(parsed.data.lat !== undefined ? { lat: parsed.data.lat } : {}),
-        ...(parsed.data.assetId !== undefined ? { assetId: parsed.data.assetId } : {}),
-      },
-    });
-    res.json(updated);
-  } catch (err: any) {
-    if (err?.code === "P2025") return res.status(404).json({ error: "not_found" });
-    next(err);
-  }
-});
-
-// List assets (search + paging)
 app.get("/assets", async (req, res, next) => {
   try {
-    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
-    const pageSize = Math.min(100, Math.max(1, parseInt(String(req.query.pageSize ?? "20"), 10)));
-    const q = (req.query.q as string | undefined)?.trim();
+    const page = toInt(req.query.page, 1);
+    const pageSize = toInt(req.query.pageSize, 10);
+    const skip = (page - 1) * pageSize;
+    const q = typeof req.query.q === "string" ? req.query.q : undefined;
 
-    const where: any = {};
-    if (q) where.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      { type: { contains: q, mode: "insensitive" } },
-    ];
+    const where = assetWhere(q);
 
     const [items, total] = await Promise.all([
       prisma.asset.findMany({
         where,
         orderBy: { id: "desc" },
-        skip: (page - 1) * pageSize,
+        skip,
         take: pageSize,
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          lon: true,
+          lat: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       }),
       prisma.asset.count({ where }),
     ]);
@@ -199,18 +105,149 @@ app.get("/assets", async (req, res, next) => {
   }
 });
 
-// ----------------------------------------------------------------------------
-// Central error handler
-// ----------------------------------------------------------------------------
+// ---- INCIDENTS (list/create/patch) ----------------------------------------
+
+app.get("/incidents", async (req, res, next) => {
+  try {
+    const page = toInt(req.query.page, 1);
+    const pageSize = toInt(req.query.pageSize, 10);
+    const skip = (page - 1) * pageSize;
+    const q = typeof req.query.q === "string" ? req.query.q : undefined;
+
+    const where = incidentWhere(q);
+
+    const [items, total] = await Promise.all([
+      prisma.incident.findMany({
+        where,
+        orderBy: { id: "desc" },
+        skip,
+        take: pageSize,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          priority: true,
+          status: true,
+          reporterId: true,
+          assetId: true,
+          lon: true,
+          lat: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      prisma.incident.count({ where }),
+    ]);
+
+    res.json({ page, pageSize, total, items });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post(
+  "/incidents",
+  requireRole("DISPATCHER", "FIELDTECH"),
+  async (req, res, next) => {
+    try {
+      // parse + validate request
+      const parsed = createIncidentSchema.parse(req.body);
+
+      // if you don’t post reporterId from UI, default to a valid user (id 1)
+      const reporterId = req.body.reporterId ?? 1;
+
+      const created = await prisma.incident.create({
+        data: {
+          title: parsed.title,
+          description: parsed.description ?? null,
+          priority: parsed.priority,
+          status: parsed.status,
+          lon: parsed.lon,
+          lat: parsed.lat,
+          reporterId,
+          assetId: parsed.assetId ?? null,
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          priority: true,
+          status: true,
+          reporterId: true,
+          assetId: true,
+          lon: true,
+          lat: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      res.status(201).json(created);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ error: "validation_error", issues: err.issues });
+      }
+      next(err);
+    }
+  }
+);
+
+app.patch(
+  "/incidents/:id",
+  requireRole("DISPATCHER", "FIELDTECH"),
+  async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ error: "bad_id" });
+
+      // accept small partial set: status/priority/assetId
+      const patch: Prisma.IncidentUpdateInput = {};
+      if (typeof req.body.status === "string") patch.status = req.body.status;
+      if (typeof req.body.priority === "string") patch.priority = req.body.priority;
+      if (req.body.assetId === null || Number.isFinite(Number(req.body.assetId))) {
+        patch.asset = req.body.assetId == null
+          ? { disconnect: true }
+          : { connect: { id: Number(req.body.assetId) } };
+      }
+
+      const updated = await prisma.incident.update({
+        where: { id },
+        data: patch,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          priority: true,
+          status: true,
+          reporterId: true,
+          assetId: true,
+          lon: true,
+          lat: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ---- errors ---------------------------------------------------------------
+
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
   res.status(500).json({ error: "internal_error" });
 });
 
-// ----------------------------------------------------------------------------
-// Listen
-// ----------------------------------------------------------------------------
+// ---- boot (keep port 5050) ------------------------------------------------
+
 const PORT = Number(process.env.PORT ?? 5050);
 app.listen(PORT, () => {
   console.log(`API listening on http://localhost:${PORT}`);
 });
+
+export default app;
+
