@@ -1,0 +1,8 @@
+ID,Title,Description,Priority,Status,AssetID,AssetName,Longitude,Latitude,CreatedAt,UpdatedAt
+44,Road closure at Main Palatine,Sollers tabesco currus xiphias veniam.,LOW,RESOLVED,,,-85.4006,15.463,2025-09-06T18:08:24.935Z,2025-09-06T22:06:45.839Z
+38,Downed line at Dickens Center Lednerboro,Callide vir collum voluptatum versus.,HIGH,RESOLVED,,,-118.7821,-38.2719,2025-09-06T18:08:24.935Z,2025-09-06T22:06:45.680Z
+33,Hydrant repair at Conrad Via Southaven,Autus tertius ustilo undique currus. Vallum vulnero socius convoco auctor vergo voluptates argentum carmen.,HIGH,RESOLVED,,,-96.4324,14.1118,2025-09-06T18:08:24.935Z,2025-09-06T22:06:45.548Z
+32,Sensor outage at Beer Forks East Leopoldberg,Succurro theca chirographum pauper circumvenio studio ad.,LOW,RESOLVED,40,these programme,155.1089,59.9343,2025-09-06T18:08:24.935Z,2025-09-06T22:06:45.522Z
+22,Road closure at N 4th Street South Mabelfurt,Tenus vulpes depereo confero aurum doloribus uter dolores ascit delinquo. Defleo absconditus basium audio.,HIGH,RESOLVED,40,these programme,57.8293,-26.6821,2025-09-06T18:08:24.935Z,2025-09-06T22:06:45.247Z
+9,Sensor outage at S Washington Avenue South Alejandraport,Volup somniculosus recusandae tot decor.,HIGH,RESOLVED,28,yearly utilization,154.5218,-37.1505,2025-09-06T18:08:24.935Z,2025-09-06T22:06:44.898Z
+7,Sensor outage at Karlee Passage Botsfordland,Vester tepesco tenus vesica adflicto aeneus spiculum thema verumtamen arbustum.,HIGH,RESOLVED,,,-108.8267,-79.7186,2025-09-06T18:08:24.935Z,2025-09-06T22:06:44.840Z

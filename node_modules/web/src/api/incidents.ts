@@ -1,54 +1,77 @@
 // FILE: web/src/api/incidents.ts
-export type Incident = {
+// Small API client used by the Incident form. Exports API_BASE so UI can reuse it.
+
+export const API_BASE: string = (import.meta as ImportMeta)?.env?.VITE_API_BASE ?? "http://localhost:5050";
+
+export type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type IncidentStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+
+export interface Incident {
   id: number;
   title: string;
   description?: string | null;
-  priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-  status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
-  reporterId: number;
+  priority: Priority;
+  status: IncidentStatus;
   assetId?: number | null;
   lon: number;
   lat: number;
   createdAt: string;
   updatedAt: string;
-};
+}
 
-export type Paged<T> = { page: number; pageSize: number; total: number; items: T[] };
-const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:5050";
+export interface ListQuery {
+  q?: string;
+  status?: IncidentStatus[];
+  priority?: Priority[];
+  assetId?: number;
+  page?: number;
+  pageSize?: number;
+  [key: string]: unknown;
+}
 
-export async function listIncidents(params: { page?: number; pageSize?: number; q?: string } = {}): Promise<Paged<Incident>> {
-  const url = new URL(`${BASE}/incidents`);
+function q(params: Record<string, unknown>): string {
+  const u = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && String(v).length) url.searchParams.set(k, String(v));
+    if (v === undefined || v === null || v === "") return;
+    if (Array.isArray(v)) u.set(k, v.join(","));
+    else u.set(k, String(v));
   });
-  const r = await fetch(url.toString());
-  if (!r.ok) throw new Error("failed");
-  return r.json();
+  const s = u.toString();
+  return s ? `?${s}` : "";
+}
+
+async function j<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, init);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function listIncidents(params: ListQuery) {
+  return j<{ page: number; pageSize: number; total: number; items: Incident[] }>(
+    `/incidents${q(params)}`
+  );
+}
+
+export async function createIncident(input: Partial<Incident>) {
+  return j<Incident>(`/incidents`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
 }
 
 export async function updateIncident(id: number, patch: Partial<Incident>) {
-  const r = await fetch(`${BASE}/incidents/${id}`, {
+  return j<Incident>(`/incidents/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", "x-user-role": "DISPATCHER" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
-  if (!r.ok) throw new Error("update failed");
-  return r.json();
 }
 
-export async function createIncident(body: {
-  title: string;
-  description?: string;
-  priority: Incident["priority"];
-  status: Incident["status"];
-  lon: number;
-  lat: number;
-}) {
-  const r = await fetch(`${BASE}/incidents`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-user-role": "DISPATCHER" },
-    body: JSON.stringify(body),
+export async function exportIncidentsCsv(params: ListQuery): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/incidents/export.csv${q(params)}`, {
+    headers: { Accept: "text/csv" },
   });
-  if (!r.ok) throw new Error("create failed");
-  return r.json();
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.blob();
 }

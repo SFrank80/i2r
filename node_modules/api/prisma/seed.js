@@ -1,90 +1,63 @@
-// FILE: api/prisma/seed.js (CommonJS)
-require("dotenv").config();
-const { PrismaClient } = require("@prisma/client");
-const { faker } = require("@faker-js/faker");
+// FILE: api/scripts/seed.ts
+import "dotenv/config";
+import prisma from "../src/db.js";
 
-const prisma = new PrismaClient();
+async function ensureAssets() {
+  try {
+    const count = await prisma.asset.count();
+    if (count > 0) return;
 
-const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
-const STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
+    await prisma.asset.createMany({
+      data: [
+        { name: "Valve 50",  type: "VALVE" },
+        { name: "Pump 1",    type: "PUMP" },
+        { name: "Meter A12", type: "METER" },
+      ],
+      skipDuplicates: true,
+    });
+    console.log("Seeded assets.");
+  } catch (e) {
+    console.warn("Asset seed skipped (no Asset model/table?)", e);
+  }
+}
 
-function englishTitle() {
-  // Plain-English titles
-  const actions = [
-    "Water leak",
-    "Hydrant leak",
-    "Valve stuck",
-    "Pump failure",
-    "Sensor offline",
-    "Traffic incident",
-    "Tree down",
-    "Road flooding",
-  ];
-  const where = `${faker.location.street()} ${faker.location.city()}`;
-  return `${faker.helpers.arrayElement(actions)} at ${where}`;
+async function ensureIncidents() {
+  try {
+    const count = await prisma.incident.count();
+    if (count > 0) return;
+
+    const assets = await prisma.asset.findMany({ take: 1 });
+    const assetId = assets[0]?.id ?? null;
+
+    const base = {
+      description: "Seeded incident for dev",
+      lon: -76.6122,
+      lat: 39.2904,
+      assetId,
+    };
+
+    await prisma.incident.createMany({
+      data: [
+        { title: "Main break near 5th", priority: "HIGH",     status: "OPEN",        ...base },
+        { title: "Meter offline alert", priority: "MEDIUM",   status: "IN_PROGRESS", ...base },
+        { title: "Valve inspection",    priority: "LOW",      status: "RESOLVED",    ...base },
+        { title: "Pump overheat",       priority: "CRITICAL", status: "OPEN",        ...base },
+      ],
+      skipDuplicates: true,
+    });
+    console.log("Seeded incidents.");
+  } catch (e) {
+    console.error("Incident seed failed:", e);
+  }
 }
 
 async function main() {
-  // 1) Users
-  const users = await Promise.all(
-    Array.from({ length: 10 }).map((_, i) =>
-      prisma.user.upsert({
-        where: { email: `user${i + 1}@example.com` },
-        update: {},
-        create: { email: `user${i + 1}@example.com`, name: faker.person.fullName() },
-      })
-    )
-  );
-
-  // 2) Assets (ensure ~50)
-  const haveAssets = await prisma.asset.count();
-  if (haveAssets < 50) {
-    await prisma.asset.createMany({
-      data: Array.from({ length: 50 }).map(() => ({
-        name: `${faker.word.adjective()} ${faker.word.noun()}`.slice(0, 40),
-        type: faker.helpers.arrayElement(["Hydrant", "Valve", "Pump", "Sensor", "Manhole"]),
-        lon: Number(faker.location.longitude()),
-        lat: Number(faker.location.latitude()),
-        status: "ACTIVE",
-        updatedAt: new Date(),
-      })),
-      skipDuplicates: true,
-    });
-  }
-
-  const assets = await prisma.asset.findMany({ select: { id: true } });
-
-  // 3) Incidents (ensure ~50)
-  const haveInc = await prisma.incident.count();
-  const missing = Math.max(0, 50 - haveInc);
-  if (missing > 0) {
-    await prisma.$transaction(
-      Array.from({ length: missing }).map(() => {
-        const prio = faker.helpers.arrayElement(PRIORITIES);
-        const stat = faker.helpers.arrayElement(STATUSES);
-        const maybeAsset = Math.random() < 0.5 ? faker.helpers.arrayElement(assets).id : null;
-        return prisma.incident.create({
-          data: {
-            title: englishTitle(),
-            description: faker.lorem.sentence(),
-            priority: prio,
-            status: stat,
-            reporterId: faker.number.int({ min: users[0].id, max: users[users.length - 1].id }),
-            assetId: maybeAsset,
-            lon: Number(faker.location.longitude()),
-            lat: Number(faker.location.latitude()),
-          },
-        });
-      })
-    );
-  }
-
-  console.log("✓ Seed complete: users, assets, incidents");
+  await ensureAssets();
+  await ensureIncidents();
+  console.log("Counts:", {
+    assets: await prisma.asset.count().catch(() => -1),
+    incidents: await prisma.incident.count().catch(() => -1),
+  });
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => prisma.$disconnect());
+main().finally(() => prisma.$disconnect());

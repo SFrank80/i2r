@@ -1,0 +1,213 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - heading "Create Incident" [level=2] [ref=e6]
+      - button "🌙 Dark" [ref=e8] [cursor=pointer]
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - generic [ref=e12]: Title
+          - textbox [ref=e13]
+        - generic [ref=e14]:
+          - generic [ref=e15]: Description
+          - textbox [ref=e16]
+        - generic [ref=e17]:
+          - generic [ref=e18]: Priority
+          - combobox [ref=e19]:
+            - option "LOW"
+            - option "MEDIUM" [selected]
+            - option "HIGH"
+            - option "CRITICAL"
+        - generic [ref=e20]:
+          - generic [ref=e21]: Status
+          - combobox [ref=e22]:
+            - option "OPEN" [selected]
+            - option "IN_PROGRESS"
+            - option "RESOLVED"
+            - option "CLOSED"
+        - generic [ref=e23]:
+          - generic [ref=e24]: Longitude
+          - textbox [ref=e25]: "-76.6122"
+        - generic [ref=e26]:
+          - generic [ref=e27]: Latitude
+          - textbox [ref=e28]: "39.2904"
+      - generic [ref=e29]:
+        - button "Create Incident" [ref=e30] [cursor=pointer]
+        - button "Reset" [ref=e31] [cursor=pointer]
+        - button "Export CSV" [ref=e32] [cursor=pointer]
+  - generic [ref=e34]:
+    - generic [ref=e36]: Search
+    - generic [ref=e37]:
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - generic [ref=e40]: title or description…
+          - textbox [ref=e41]
+        - generic [ref=e42]:
+          - generic [ref=e43]: Asset
+          - generic [ref=e44]:
+            - textbox "Asset ID or blank" [ref=e45]
+            - button "Apply" [ref=e46] [cursor=pointer]
+            - button "Clear" [ref=e47] [cursor=pointer]
+      - generic [ref=e48]: Showing page 1 of 6 • 60 total
+      - table [ref=e50]:
+        - rowgroup [ref=e51]:
+          - row "ID Title Priority Status Asset Actions" [ref=e52]:
+            - cell "ID" [ref=e53]
+            - cell "Title" [ref=e54]
+            - cell "Priority" [ref=e55]
+            - cell "Status" [ref=e56]
+            - cell "Asset" [ref=e57]
+            - cell "Actions" [ref=e58]
+        - rowgroup [ref=e59]:
+          - row "60 test 5 HIGH IN_PROGRESS 50 Assign asset to incident 60" [ref=e60]:
+            - cell "60" [ref=e61]
+            - cell "test 5" [ref=e62]
+            - cell "HIGH" [ref=e63]:
+              - generic [ref=e64]: HIGH
+            - cell "IN_PROGRESS" [ref=e65]:
+              - combobox [ref=e66]:
+                - option "OPEN"
+                - option "IN_PROGRESS" [selected]
+                - option "RESOLVED"
+                - option "CLOSED"
+            - cell "50" [ref=e67]
+            - cell "Assign asset to incident 60" [ref=e68]:
+              - button "Assign asset to incident 60" [ref=e69] [cursor=pointer]: Assign asset
+          - row "59 test again 09/13/25 CRITICAL OPEN 47 Assign asset to incident 59" [ref=e70]:
+            - cell "59" [ref=e71]
+            - cell "test again 09/13/25" [ref=e72]
+            - cell "CRITICAL" [ref=e73]:
+              - generic [ref=e74]: CRITICAL
+            - cell "OPEN" [ref=e75]:
+              - combobox [ref=e76]:
+                - option "OPEN" [selected]
+                - option "IN_PROGRESS"
+                - option "RESOLVED"
+                - option "CLOSED"
+            - cell "47" [ref=e77]
+            - cell "Assign asset to incident 59" [ref=e78]:
+              - button "Assign asset to incident 59" [ref=e79] [cursor=pointer]: Assign asset
+          - row "58 Explicit coords LOW OPEN 35 Assign asset to incident 58" [ref=e80]:
+            - cell "58" [ref=e81]
+            - cell "Explicit coords" [ref=e82]
+            - cell "LOW" [ref=e83]:
+              - generic [ref=e84]: LOW
+            - cell "OPEN" [ref=e85]:
+              - combobox [ref=e86]:
+                - option "OPEN" [selected]
+                - option "IN_PROGRESS"
+                - option "RESOLVED"
+                - option "CLOSED"
+            - cell "35" [ref=e87]
+            - cell "Assign asset to incident 58" [ref=e88]:
+              - button "Assign asset to incident 58" [ref=e89] [cursor=pointer]: Assign asset
+          - row "57 SLA test CRITICAL IN_PROGRESS 37 Assign asset to incident 57" [ref=e90]:
+            - cell "57" [ref=e91]
+            - cell "SLA test" [ref=e92]
+            - cell "CRITICAL" [ref=e93]:
+              - generic [ref=e94]: CRITICAL
+            - cell "IN_PROGRESS" [ref=e95]:
+              - combobox [ref=e96]:
+                - option "OPEN"
+                - option "IN_PROGRESS" [selected]
+                - option "RESOLVED"
+                - option "CLOSED"
+            - cell "37" [ref=e97]
+            - cell "Assign asset to incident 57" [ref=e98]:
+              - button "Assign asset to incident 57" [ref=e99] [cursor=pointer]: Assign asset
+          - row "56 test on 09/12/25 at 11:37pm HIGH IN_PROGRESS 34 Assign asset to incident 56" [ref=e100]:
+            - cell "56" [ref=e101]
+            - cell "test on 09/12/25 at 11:37pm" [ref=e102]
+            - cell "HIGH" [ref=e103]:
+              - generic [ref=e104]: HIGH
+            - cell "IN_PROGRESS" [ref=e105]:
+              - combobox [ref=e106]:
+                - option "OPEN"
+                - option "IN_PROGRESS" [selected]
+                - option "RESOLVED"
+                - option "CLOSED"
+            - cell "34" [ref=e107]
+            - cell "Assign asset to incident 56" [ref=e108]:
+              - button "Assign asset to incident 56" [ref=e109] [cursor=pointer]: Assign asset
+          - row "55 Test incident response app LOW RESOLVED 35 Assign asset to incident 55" [ref=e110]:
+            - cell "55" [ref=e111]
+            - cell "Test incident response app" [ref=e112]
+            - cell "LOW" [ref=e113]:
+              - generic [ref=e114]: LOW
+            - cell "RESOLVED" [ref=e115]:
+              - combobox [ref=e116]:
+                - option "OPEN"
+                - option "IN_PROGRESS"
+                - option "RESOLVED" [selected]
+                - option "CLOSED"
+            - cell "35" [ref=e117]
+            - cell "Assign asset to incident 55" [ref=e118]:
+              - button "Assign asset to incident 55" [ref=e119] [cursor=pointer]: Assign asset
+          - row "54 Water Main Break CRITICAL IN_PROGRESS 49 Assign asset to incident 54" [ref=e120]:
+            - cell "54" [ref=e121]
+            - cell "Water Main Break" [ref=e122]
+            - cell "CRITICAL" [ref=e123]:
+              - generic [ref=e124]: CRITICAL
+            - cell "IN_PROGRESS" [ref=e125]:
+              - combobox [ref=e126]:
+                - option "OPEN"
+                - option "IN_PROGRESS" [selected]
+                - option "RESOLVED"
+                - option "CLOSED"
+            - cell "49" [ref=e127]
+            - cell "Assign asset to incident 54" [ref=e128]:
+              - button "Assign asset to incident 54" [ref=e129] [cursor=pointer]: Assign asset
+          - row "53 Main break on Columbia Road CRITICAL RESOLVED 50 Assign asset to incident 53" [ref=e130]:
+            - cell "53" [ref=e131]
+            - cell "Main break on Columbia Road" [ref=e132]
+            - cell "CRITICAL" [ref=e133]:
+              - generic [ref=e134]: CRITICAL
+            - cell "RESOLVED" [ref=e135]:
+              - combobox [ref=e136]:
+                - option "OPEN"
+                - option "IN_PROGRESS"
+                - option "RESOLVED" [selected]
+                - option "CLOSED"
+            - cell "50" [ref=e137]
+            - cell "Assign asset to incident 53" [ref=e138]:
+              - button "Assign asset to incident 53" [ref=e139] [cursor=pointer]: Assign asset
+          - row "52 Major Main Break on 6740 10th Street CRITICAL RESOLVED 45 Assign asset to incident 52" [ref=e140]:
+            - cell "52" [ref=e141]
+            - cell "Major Main Break on 6740 10th Street" [ref=e142]
+            - cell "CRITICAL" [ref=e143]:
+              - generic [ref=e144]: CRITICAL
+            - cell "RESOLVED" [ref=e145]:
+              - combobox [ref=e146]:
+                - option "OPEN"
+                - option "IN_PROGRESS"
+                - option "RESOLVED" [selected]
+                - option "CLOSED"
+            - cell "45" [ref=e147]
+            - cell "Assign asset to incident 52" [ref=e148]:
+              - button "Assign asset to incident 52" [ref=e149] [cursor=pointer]: Assign asset
+          - row "51 Hydrant leak on 5th Ave HIGH IN_PROGRESS 48 Assign asset to incident 51" [ref=e150]:
+            - cell "51" [ref=e151]
+            - cell "Hydrant leak on 5th Ave" [ref=e152]
+            - cell "HIGH" [ref=e153]:
+              - generic [ref=e154]: HIGH
+            - cell "IN_PROGRESS" [ref=e155]:
+              - combobox [ref=e156]:
+                - option "OPEN"
+                - option "IN_PROGRESS" [selected]
+                - option "RESOLVED"
+                - option "CLOSED"
+            - cell "48" [ref=e157]
+            - cell "Assign asset to incident 51" [ref=e158]:
+              - button "Assign asset to incident 51" [ref=e159] [cursor=pointer]: Assign asset
+      - generic [ref=e160]:
+        - combobox [ref=e162]:
+          - option "10 / page" [selected]
+          - option "20 / page"
+          - option "50 / page"
+        - button "Prev" [disabled] [ref=e163]
+        - button "Next" [ref=e164] [cursor=pointer]
+  - generic [ref=e166]: "API base: http://localhost:5050"
+```

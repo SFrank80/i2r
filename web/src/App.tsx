@@ -2,10 +2,9 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 
-// all‑lowercase path per your preference
 import AssignAssetModal from "./components/assignassetmodal";
 
-// your project layout has incidents.ts in src/
+// your API helpers & types
 import { listIncidents, updateIncident } from "./api/incidents";
 import type { Incident } from "./api/incidents";
 
@@ -14,6 +13,7 @@ export default function App() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignFor, setAssignFor] = useState<{ id: number; assetId: number | null } | null>(null);
 
+  // initial load
   useEffect(() => {
     (async () => {
       const res = (await listIncidents({ page: 1, pageSize: 20 })) as { items: Incident[] };
@@ -22,6 +22,7 @@ export default function App() {
   }, []);
 
   function openAssign(it: Incident) {
+    // open modal for this incident
     setAssignFor({ id: it.id, assetId: it.assetId ?? null });
     setAssignOpen(true);
   }
@@ -51,7 +52,15 @@ export default function App() {
                 <td style={td}>{it.status}</td>
                 <td style={td}>{it.assetId ?? "-"}</td>
                 <td style={td}>
-                  <button style={btn} onClick={() => openAssign(it)}>Assign asset</button>
+                  {/* IMPORTANT: type="button" so it never submits any surrounding form */}
+                  <button
+                    type="button"
+                    style={btn}
+                    onClick={() => openAssign(it)}
+                    aria-label={`Assign asset to incident ${it.id}`}
+                  >
+                    Assign asset
+                  </button>
                 </td>
               </tr>
             ))}
@@ -59,7 +68,6 @@ export default function App() {
         </table>
       </div>
 
-      {/* NOTE: prop is `open`, not `isOpen` */}
       <AssignAssetModal
         open={assignOpen}
         incidentId={assignFor?.id ?? 0}
@@ -67,8 +75,13 @@ export default function App() {
         onClose={() => setAssignOpen(false)}
         onAssign={async (assetId: number | null) => {
           if (!assignFor) return;
+          // PATCH on the API
           await updateIncident(assignFor.id, { assetId });
-          setItems((prev) => prev.map((it) => (it.id === assignFor.id ? { ...it, assetId: assetId ?? null } : it)));
+          // update UI
+          setItems((prev) =>
+            prev.map((it) => (it.id === assignFor.id ? { ...it, assetId: assetId ?? null } : it)),
+          );
+          setAssignOpen(false);
         }}
       />
     </div>
@@ -77,4 +90,12 @@ export default function App() {
 
 const th: CSSProperties = { textAlign: "left", padding: 8, borderBottom: "1px solid #eee" };
 const td: CSSProperties = { padding: 8, borderBottom: "1px solid #f2f2f2" };
-const btn: CSSProperties = { padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd", background: "#f9fafb", cursor: "pointer" };
+const btn: CSSProperties = {
+  padding: "6px 10px",
+  borderRadius: 8,
+  border: "1px solid #ddd",
+  background: "#f9b234",
+  color: "#111",
+  fontWeight: 600,
+  cursor: "pointer",
+};

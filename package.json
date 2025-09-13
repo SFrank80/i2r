@@ -1,22 +1,24 @@
 {
   "name": "i2r",
   "private": true,
-  "workspaces": [
-    "api",
-    "web"
-  ],
+  "workspaces": ["api","web"],
+
   "scripts": {
     "postinstall": "echo \"Root install complete\"",
+    "dev": "npm -w api run dev & npm -w web run dev",
     "dev:api": "npm -w api run dev",
     "dev:web": "npm -w web run dev",
-    "dev": "npm-run-all -p dev:*",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "build": "npm -w api run build && npm -w web run build"
   },
+  
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "npm-run-all": "^4.1.5"
   },
   "dependencies": {
-    "@prisma/client": "^6.15.0",
+    "@prisma/client": "^6.16.1",
     "@types/cors": "^2.8.19",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",

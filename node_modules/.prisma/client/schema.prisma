@@ -1,63 +1,52 @@
 // FILE: api/prisma/schema.prisma
-// Encoding: UTF-8 (no BOM), EOL: LF
-
-generator client {
-  provider = "prisma-client-js"
-}
+// Minimal, working schema that matches the API and UI you’re running.
+// Provider: PostgreSQL (DATABASE_URL in api/.env)
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-/**
- * Optional: keep Role enum only if you use it in a model.
- * Having an unused enum is fine; Prisma allows it.
- */
-enum Role {
-  ADMIN
-  DISPATCHER
-  FIELDTECH
-  VIEWER
-
-  @@map("Role") // map Prisma enum to existing Postgres enum "Role"
+generator client {
+  provider = "prisma-client-js"
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-  role      Role     @default(VIEWER) // use the enum, matches DB default
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
 }
 
 model Asset {
   id        Int        @id @default(autoincrement())
-  // DB shows: type, name, status (all NOT NULL)
-  type      String
   name      String
-  status    String
-  // DB shows lon/lat NOT NULL (double precision)
-  lon       Float
-  lat       Float
-  createdAt DateTime   @default(now()) // DB shows CURRENT_TIMESTAMP
-  updatedAt DateTime   @default(now()) @updatedAt
+  type      String?
+  lon       Float?
+  lat       Float?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   incidents Incident[]
 }
 
 model Incident {
-  id          Int      @id @default(autoincrement())
+  id          Int            @id @default(autoincrement())
   title       String
   description String?
-  priority    String   @db.Text // normalized to TEXT via SQL
-  status      String   @db.Text // normalized to TEXT via SQL
-  reporterId  Int
+  priority    Priority
+  status      IncidentStatus
+  reporterId  Int?
   assetId     Int?
+  asset       Asset?         @relation(fields: [assetId], references: [id])
   lon         Float
   lat         Float
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  asset Asset? @relation(fields: [assetId], references: [id])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 }
