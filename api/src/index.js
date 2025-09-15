@@ -1,17 +1,17 @@
 // FILE: api/src/index.js
-// ESM all the way; no `require`.
+// ESM API with analytics events + CSV analytics endpoints
 
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-
-// Be tolerant of how db.js exports:
-//  - named export:  export const prisma = new PrismaClient(...)
-//  - default export: export default prisma
 import prismaDefault, { prisma as prismaNamed } from "./db.js";
-const db = prismaNamed ?? prismaDefault;
+import { logEvent } from "./analytics.js";
+import { attachAnalyticsRoutes } from "./routes/analytics.js";
 
-// ---------------------------- helpers ---------------------------------
+// Use whichever export the db module provides
+const prisma = prismaNamed || prismaDefault;
+
+// ---------- helpers ----------
 function toInt(v, fallback) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -19,26 +19,9 @@ function toInt(v, fallback) {
 function toStringOrUndef(v) {
   return typeof v === "string" && v.trim() ? v : undefined;
 }
-function toFloat(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : undefined;
-}
-function inRange(n, min, max) {
-  return typeof n === "number" && n >= min && n <= max ? n : undefined;
-}
-function parseLonOrUndef(v) {
-  return inRange(toFloat(v), -180, 180);
-}
-function parseLatOrUndef(v) {
-  return inRange(toFloat(v), -90, 90);
-}
 function getErrorMessage(e) {
   if (e instanceof Error) return e.message;
-  try {
-    return JSON.stringify(e);
-  } catch {
-    return String(e);
-  }
+  try { return JSON.stringify(e); } catch { return String(e); }
 }
 function asCsvValue(v) {
   const s =
@@ -56,13 +39,7 @@ function asCsvValue(v) {
   return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-// Defaults used when client omits/invalid lon/lat
-const DEFAULT_LON =
-  inRange(toFloat(process.env.DEFAULT_LON), -180, 180) ?? -76.6122; // Baltimore-ish
-const DEFAULT_LAT =
-  inRange(toFloat(process.env.DEFAULT_LAT), -90, 90) ?? 39.2904;
-
-// ------------------------------ app -----------------------------------
+// ---------- app ----------
 const app = express();
 const PORT = Number(process.env.PORT ?? 5050);
 
@@ -105,8 +82,8 @@ app.get("/assets", async (req, res) => {
     };
 
     const [total, items] = await Promise.all([
-      db.asset.count({ where }),
-      db.asset.findMany(findArgs),
+      prisma.asset.count({ where }),
+      prisma.asset.findMany(findArgs),
     ]);
 
     res.json({ page, pageSize, total, items });
@@ -116,30 +93,28 @@ app.get("/assets", async (req, res) => {
 });
 
 // ---- Incidents (create)
-// Option B: keep schema strict; fill lon/lat with defaults if missing/invalid.
 app.post("/incidents", async (req, res) => {
   try {
-    const { title, description, priority, status, lon, lat, assetId } =
-      req.body ?? {};
-
+    const { title, description, priority, status, lon, lat, assetId } = req.body ?? {};
     if (!title || typeof title !== "string") {
       return res.status(400).json({ error: "title is required" });
     }
-
-    const lonNum = parseLonOrUndef(lon) ?? DEFAULT_LON;
-    const latNum = parseLatOrUndef(lat) ?? DEFAULT_LAT;
 
     const data = {
       title: title.trim(),
       description: typeof description === "string" ? description : "",
       priority,
       status,
-      lon: lonNum,
-      lat: latNum,
-      assetId: typeof assetId === "number" ? assetId : undefined,
     };
+    if (typeof lon === "number") data.lon = lon;
+    if (typeof lat === "number") data.lat = lat;
+    if (typeof assetId === "number") data.assetId = assetId;
 
-    const created = await db.incident.create({ data });
+    const created = await prisma.incident.create({ data });
+
+    // log analytics event
+    await logEvent(req, "incident.create", { priority, status }, created.id);
+
     res.status(201).json(created);
   } catch (e) {
     res.status(500).json({ error: getErrorMessage(e) });
@@ -150,30 +125,28 @@ app.post("/incidents", async (req, res) => {
 app.patch("/incidents/:id", async (req, res) => {
   try {
     const id = toInt(req.params.id, NaN);
-    if (!Number.isFinite(id)) {
-      return res.status(400).json({ error: "invalid id" });
-    }
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id" });
 
     const body = req.body ?? {};
     const data = {};
-
     for (const k of ["title", "description", "priority", "status"]) {
       if (k in body) data[k] = body[k];
     }
+    if ("lon" in body) data.lon = typeof body.lon === "number" ? body.lon : undefined;
+    if ("lat" in body) data.lat = typeof body.lat === "number" ? body.lat : undefined;
+    if ("assetId" in body) data.assetId = typeof body.assetId === "number" ? body.assetId : null;
 
-    if ("lon" in body) {
-      const n = parseLonOrUndef(body.lon);
-      if (typeof n === "number") data.lon = n;
-    }
-    if ("lat" in body) {
-      const n = parseLatOrUndef(body.lat);
-      if (typeof n === "number") data.lat = n;
-    }
-    if ("assetId" in body) {
-      if (typeof body.assetId === "number") data.assetId = body.assetId;
-    }
+    const updated = await prisma.incident.update({ where: { id }, data });
 
-    const updated = await db.incident.update({ where: { id }, data });
+    // log analytics event (special-case assign)
+    const isAssign = Object.prototype.hasOwnProperty.call(body, "assetId");
+    await logEvent(
+      req,
+      isAssign ? "incident.assign_asset" : "incident.update",
+      { changed: Object.keys(body) },
+      id
+    );
+
     res.json(updated);
   } catch (e) {
     res.status(500).json({ error: getErrorMessage(e) });
@@ -209,9 +182,7 @@ app.get("/incidents", async (req, res) => {
         : {}),
       ...(assetId ? { assetId } : {}),
       ...(statusList && statusList.length ? { status: { in: statusList } } : {}),
-      ...(priorityList && priorityList.length
-        ? { priority: { in: priorityList } }
-        : {}),
+      ...(priorityList && priorityList.length ? { priority: { in: priorityList } } : {}),
     };
 
     const findArgs = {
@@ -234,8 +205,8 @@ app.get("/incidents", async (req, res) => {
     };
 
     const [total, items] = await Promise.all([
-      db.incident.count({ where }),
-      db.incident.findMany(findArgs),
+      prisma.incident.count({ where }),
+      prisma.incident.findMany(findArgs),
     ]);
 
     res.json({ page, pageSize, total, items });
@@ -271,12 +242,10 @@ app.get("/incidents/export.csv", async (req, res) => {
         : {}),
       ...(assetId ? { assetId } : {}),
       ...(statusList && statusList.length ? { status: { in: statusList } } : {}),
-      ...(priorityList && priorityList.length
-        ? { priority: { in: priorityList } }
-        : {}),
+      ...(priorityList && priorityList.length ? { priority: { in: priorityList } } : {}),
     };
 
-    const rows = await db.incident.findMany({
+    const rows = await prisma.incident.findMany({
       where,
       orderBy: { id: "desc" },
       select: {
@@ -288,21 +257,12 @@ app.get("/incidents/export.csv", async (req, res) => {
         assetId: true,
         createdAt: true,
       },
-      take: 10000, // cap export
+      take: 10000,
     });
 
-    const header = [
-      "id",
-      "title",
-      "description",
-      "priority",
-      "status",
-      "assetId",
-      "createdAt",
-    ];
-
+    const columns = ["id", "title", "description", "priority", "status", "assetId", "createdAt"];
     const csv =
-      header.join(",") +
+      columns.join(",") +
       "\n" +
       rows
         .map((r) =>
@@ -318,23 +278,25 @@ app.get("/incidents/export.csv", async (req, res) => {
         )
         .join("\n");
 
+    // log analytics event
+    await logEvent(req, "incidents.export_csv", { q, assetId, statusList, priorityList });
+
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader(
-      "Content-Disposition",
-      'attachment; filename="incidents.csv"',
-    );
+    res.setHeader("Content-Disposition", 'attachment; filename="incidents.csv"');
     res.send(csv);
   } catch (e) {
     res.status(500).json({ error: getErrorMessage(e) });
   }
 });
 
-// ---- Start server + optional inline SLA runner
+// ---- Analytics CSV routes
+attachAnalyticsRoutes(app);
+
+// ---- Start server (+ optional SLA inline runner)
 app.listen(PORT, () => {
   console.log(`API listening on http://localhost:${PORT}`);
 
   if (process.env.SLA_INLINE === "1") {
-    // IMPORTANT: include .js so ESM resolves correctly
     import("./jobs/sla.js")
       .then(async ({ scheduleSlaCheck, startSlaWorker }) => {
         try {

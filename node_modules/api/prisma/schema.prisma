@@ -1,34 +1,16 @@
-// FILE: api/prisma/schema.prisma
-// Minimal, working schema that matches the API and UI you’re running.
-// Provider: PostgreSQL (DATABASE_URL in api/.env)
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-enum IncidentStatus {
-  OPEN
-  IN_PROGRESS
-  RESOLVED
-  CLOSED
-}
-
 model Asset {
   id        Int        @id @default(autoincrement())
-  name      String
   type      String?
+  name      String
   lon       Float?
   lat       Float?
   createdAt DateTime   @default(now())
@@ -44,9 +26,32 @@ model Incident {
   status      IncidentStatus
   reporterId  Int?
   assetId     Int?
-  asset       Asset?         @relation(fields: [assetId], references: [id])
   lon         Float
   lat         Float
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+  asset       Asset?         @relation(fields: [assetId], references: [id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
+}
+
+enum IncidentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
 }

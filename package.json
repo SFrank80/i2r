@@ -1,8 +1,10 @@
 {
   "name": "i2r",
   "private": true,
-  "workspaces": ["api","web"],
-
+  "workspaces": [
+    "api",
+    "web"
+  ],
   "scripts": {
     "postinstall": "echo \"Root install complete\"",
     "dev": "npm -w api run dev & npm -w web run dev",
@@ -12,7 +14,6 @@
     "test:e2e:ui": "playwright test --ui",
     "build": "npm -w api run build && npm -w web run build"
   },
-  
   "devDependencies": {
     "@playwright/test": "^1.55.0",
     "npm-run-all": "^4.1.5"
