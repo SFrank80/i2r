@@ -1,27 +1,39 @@
 // FILE: api/src/index.js
-// ESM API with analytics events + CSV analytics endpoints
-
+// ESM API with analytics events + CSV analytics endpoints (CLEAN REWRITE)
 import "dotenv/config";
+import prisma from "./db.js";
 import express from "express";
 import cors from "cors";
-import prismaDefault, { prisma as prismaNamed } from "./db.js";
+
+// Keep ESM-safe imports (note the .js extensions)
 import { logEvent } from "./analytics.js";
 import { attachAnalyticsRoutes } from "./routes/analytics.js";
-
-// Use whichever export the db module provides
-const prisma = prismaNamed || prismaDefault;
 
 // ---------- helpers ----------
 function toInt(v, fallback) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
 }
+
 function toStringOrUndef(v) {
   return typeof v === "string" && v.trim() ? v : undefined;
 }
+
 function getErrorMessage(e) {
   if (e instanceof Error) return e.message;
-  try { return JSON.stringify(e); } catch { return String(e); }
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return String(e);
+  }
+}
+
+// CSV helpers without fragile regex-in-template usage
+function needsCsvQuote(s) {
+  return s.includes(",") || s.includes('"') || s.includes("\n");
+}
+function csvEscape(s) {
+  return `"${s.replace(/"/g, '""')}"`;
 }
 function asCsvValue(v) {
   const s =
@@ -36,7 +48,8 @@ function asCsvValue(v) {
       : new Date(v).toString() !== "Invalid Date"
       ? new Date(v).toISOString()
       : JSON.stringify(v);
-  return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+
+  return needsCsvQuote(s) ? csvEscape(s) : s;
 }
 
 // ---------- app ----------
@@ -100,15 +113,17 @@ app.post("/incidents", async (req, res) => {
       return res.status(400).json({ error: "title is required" });
     }
 
+    // Build Prisma data object. Asset is optional (nullable FK).
     const data = {
       title: title.trim(),
       description: typeof description === "string" ? description : "",
       priority,
       status,
     };
+
     if (typeof lon === "number") data.lon = lon;
     if (typeof lat === "number") data.lat = lat;
-    if (typeof assetId === "number") data.assetId = assetId;
+    if (typeof assetId === "number") data.assetId = assetId; // optional FK
 
     const created = await prisma.incident.create({ data });
 
@@ -129,12 +144,17 @@ app.patch("/incidents/:id", async (req, res) => {
 
     const body = req.body ?? {};
     const data = {};
+
+    // allow partial updates
     for (const k of ["title", "description", "priority", "status"]) {
-      if (k in body) data[k] = body[k];
+      if (Object.prototype.hasOwnProperty.call(body, k)) data[k] = body[k];
     }
-    if ("lon" in body) data.lon = typeof body.lon === "number" ? body.lon : undefined;
-    if ("lat" in body) data.lat = typeof body.lat === "number" ? body.lat : undefined;
-    if ("assetId" in body) data.assetId = typeof body.assetId === "number" ? body.assetId : null;
+    if (Object.prototype.hasOwnProperty.call(body, "lon"))
+      data.lon = typeof body.lon === "number" ? body.lon : undefined;
+    if (Object.prototype.hasOwnProperty.call(body, "lat"))
+      data.lat = typeof body.lat === "number" ? body.lat : undefined;
+    if (Object.prototype.hasOwnProperty.call(body, "assetId"))
+      data.assetId = typeof body.assetId === "number" ? body.assetId : null;
 
     const updated = await prisma.incident.update({ where: { id }, data });
 
@@ -274,11 +294,10 @@ app.get("/incidents/export.csv", async (req, res) => {
             asCsvValue(r.status),
             asCsvValue(r.assetId),
             asCsvValue(r.createdAt),
-          ].join(","),
+          ].join(",")
         )
         .join("\n");
 
-    // log analytics event
     await logEvent(req, "incidents.export_csv", { q, assetId, statusList, priorityList });
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");

@@ -104,3 +104,52 @@ html, body { overflow-x: hidden; }
 
 /* Theme toggle */
 .theme-toggle { margin-left: auto; }
+
+/* === Button normalization (consistent size/shape/color + no underline) === */
+button.btn, .btn, .btn-primary,
+a.btn, a.btn-primary,
+input[type="button"].btn, input[type="submit"].btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  /* size */
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  line-height: 1;
+  white-space: nowrap;
+
+  /* look + colors (match your theme vars) */
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border: 1px solid transparent;
+  font-weight: 600;
+  text-decoration: none;     /* kill underline for <a> */
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+a.btn, a.btn-primary { text-decoration: none; }
+a.btn:hover, a.btn-primary:hover { text-decoration: none; }
+
+/* same hover/disabled behavior */
+.btn:hover, .btn-primary:hover { filter: brightness(0.98); }
+.btn:disabled, .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+/* === Equal widths in action rows (Create/Export, Apply/Clear) === */
+.md-actions .btn, .md-actions .btn-primary {
+  flex: 0 0 160px;          /* make siblings same width; tweak value if desired */
+}
+
+/* === Equal widths in grid rows (CSV download two-column grid) === */
+.md-grid .btn, .md-grid .btn-primary {
+  width: 100%;              /* each button fills its grid column → equal widths */
+}
+
+/* Optional: clearer focus ring */
+.btn:focus-visible, .btn-primary:focus-visible, a.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

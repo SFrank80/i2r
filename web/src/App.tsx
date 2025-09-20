@@ -1,10 +1,8 @@
-// FILE: web/src/App.tsx
-import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
-
+// FILE: web/src/app.tsx
+import { useEffect, useState, type CSSProperties } from "react";
 import AssignAssetModal from "./components/assignassetmodal";
+import CsvDownloadButtons from "./components/csvdownloadbuttons";
 
-// your API helpers & types
 import { listIncidents, updateIncident } from "./api/incidents";
 import type { Incident } from "./api/incidents";
 
@@ -13,7 +11,6 @@ export default function App() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignFor, setAssignFor] = useState<{ id: number; assetId: number | null } | null>(null);
 
-  // initial load
   useEffect(() => {
     (async () => {
       const res = (await listIncidents({ page: 1, pageSize: 20 })) as { items: Incident[] };
@@ -22,7 +19,6 @@ export default function App() {
   }, []);
 
   function openAssign(it: Incident) {
-    // open modal for this incident
     setAssignFor({ id: it.id, assetId: it.assetId ?? null });
     setAssignOpen(true);
   }
@@ -31,7 +27,10 @@ export default function App() {
     <div style={{ padding: 16 }}>
       <h2>Incidents</h2>
 
-      <div style={{ overflowX: "auto" }}>
+      {/* ✅ Add the CSV Download Buttons here */}
+      <CsvDownloadButtons />
+
+      <div style={{ overflowX: "auto", marginTop: 20 }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -52,7 +51,6 @@ export default function App() {
                 <td style={td}>{it.status}</td>
                 <td style={td}>{it.assetId ?? "-"}</td>
                 <td style={td}>
-                  {/* IMPORTANT: type="button" so it never submits any surrounding form */}
                   <button
                     type="button"
                     style={btn}
@@ -75,9 +73,7 @@ export default function App() {
         onClose={() => setAssignOpen(false)}
         onAssign={async (assetId: number | null) => {
           if (!assignFor) return;
-          // PATCH on the API
           await updateIncident(assignFor.id, { assetId });
-          // update UI
           setItems((prev) =>
             prev.map((it) => (it.id === assignFor.id ? { ...it, assetId: assetId ?? null } : it)),
           );
@@ -99,3 +95,4 @@ const btn: CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
 };
+

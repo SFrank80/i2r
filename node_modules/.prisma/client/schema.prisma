@@ -1,3 +1,5 @@
+// FILE: api/prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,39 +9,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Asset {
-  id        Int        @id @default(autoincrement())
-  type      String?
-  name      String
-  lon       Float?
-  lat       Float?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  incidents Incident[]
-}
-
-model Incident {
-  id          Int            @id @default(autoincrement())
-  title       String
-  description String?
-  priority    Priority
-  status      IncidentStatus
-  reporterId  Int?
-  assetId     Int?
-  lon         Float
-  lat         Float
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  asset       Asset?         @relation(fields: [assetId], references: [id])
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model spatial_ref_sys {
-  srid      Int     @id
-  auth_name String? @db.VarChar(256)
-  auth_srid Int?
-  srtext    String? @db.VarChar(2048)
-  proj4text String? @db.VarChar(2048)
+/**
+ * ---------- Enums ----------
+ */
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
 }
 
 enum IncidentStatus {
@@ -49,9 +26,78 @@ enum IncidentStatus {
   CLOSED
 }
 
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
+/**
+ * ---------- Models ----------
+ */
+model Daily {
+  id     Int      @id @default(autoincrement())
+  Day    DateTime
+  Status String
+  Count  Int
+}
+
+model ByAsset {
+  id        Int    @id @default(autoincrement())
+  AssetName String
+  Count     Int
+}
+
+model SLA {
+  id        Int      @id @default(autoincrement())
+  CreatedAt DateTime @default(now())
+  Status    String
+  Priority  Priority
+}
+
+model Asset {
+  id        Int      @id @default(autoincrement())
+  type      String?
+  name      String
+  lon       Float?
+  lat       Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  incidents Incident[]
+}
+
+model Incident {
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String
+  priority    Priority
+  status      IncidentStatus
+  lon         Float
+  lat         Float
+
+  assetId Int?
+  asset   Asset? @relation(fields: [assetId], references: [id])
+
+  events Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assetId])
+}
+
+model Event {
+  id         Int      @id @default(autoincrement())
+  type       String
+  actor      String
+  metadata   Json
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  incidentId Int
+  createdAt  DateTime @default(now())
+}
+
+/**
+ * Keep if your DB has this PostGIS metadata table
+ */
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
 }

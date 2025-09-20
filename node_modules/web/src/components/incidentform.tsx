@@ -1,8 +1,6 @@
 // FILE: web/src/components/incidentform.tsx
-// Sprint 6: stable useEffect deps, compact pager select, CSV download, dark mode toggle
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  API_BASE,
   createIncident,
   listIncidents,
   updateIncident,
@@ -10,18 +8,15 @@ import {
 } from "../api/incidents";
 import type { Incident, IncidentStatus, Priority } from "../api/incidents";
 
-// ⬇️ add the modal (same folder, lowercase path)
 import AssignAssetModal from "./assignassetmodal";
+import CsvDownloadButtons from "./csvdownloadbuttons";
 
-// ---------- helpers ----------
-const priorities: Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
-const statuses: IncidentStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
+/* ---------- constants / helpers ---------- */
+const PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+const STATUSES: IncidentStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
 
 function clsPriority(p: Priority) {
-  return (
-    "badge " +
-    (p === "LOW" ? "low" : p === "MEDIUM" ? "medium" : p === "HIGH" ? "high" : "critical")
-  );
+  return "badge " + (p === "LOW" ? "low" : p === "MEDIUM" ? "medium" : p === "HIGH" ? "high" : "critical");
 }
 
 function getErrorMessage(e: unknown): string {
@@ -34,35 +29,36 @@ function getErrorMessage(e: unknown): string {
   }
 }
 
+/* ---------- component ---------- */
 export default function IncidentForm() {
-  // ---------- theme ----------
+  /* Theme toggle */
   const [theme, setTheme] = useState<string>(() => localStorage.getItem("theme") || "light");
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
   }, [theme]);
 
-  // ---------- create form ----------
+  /* Create form */
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("MEDIUM");
   const [status, setStatus] = useState<IncidentStatus>("OPEN");
   const [lon, setLon] = useState("-76.6122");
   const [lat, setLat] = useState("39.2904");
-
-  // ---------- filters & paging ----------
-  const [q, setQ] = useState("");
   const [assetId, setAssetId] = useState<string>("");
+
+  /* Filters / paging */
+  const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // ---------- data / state ----------
+  /* Data */
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState<Incident[]>([]);
 
-  // ---------- assign asset modal state ----------
+  /* Assign modal state */
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignFor, setAssignFor] = useState<{ id: number; assetId: number | null } | null>(null);
 
@@ -71,7 +67,7 @@ export default function IncidentForm() {
     setAssignOpen(true);
   }
 
-  // Stable callback used by useEffect so dep list does not change between renders
+  /* Fetch list */
   const fetchList = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -95,7 +91,7 @@ export default function IncidentForm() {
     fetchList();
   }, [fetchList]);
 
-  // ---------- actions ----------
+  /* Create */
   const onCreate = async () => {
     try {
       await createIncident({
@@ -111,12 +107,26 @@ export default function IncidentForm() {
       setDescription("");
       setPriority("MEDIUM");
       setStatus("OPEN");
+      setLon("-76.6122");
+      setLat("39.2904");
+      setAssetId("");
       await fetchList();
     } catch (e: unknown) {
       alert(`Create failed: ${getErrorMessage(e)}`);
     }
   };
 
+  const onResetCreate = () => {
+    setTitle("");
+    setDescription("");
+    setPriority("MEDIUM");
+    setStatus("OPEN");
+    setLon("-76.6122");
+    setLat("39.2904");
+    setAssetId("");
+  };
+
+  /* Inline status update */
   const onStatusChange = async (id: number, s: IncidentStatus) => {
     try {
       await updateIncident(id, { status: s });
@@ -126,6 +136,7 @@ export default function IncidentForm() {
     }
   };
 
+  /* Filters */
   const onApply = async () => {
     setPage(1);
     await fetchList();
@@ -137,6 +148,7 @@ export default function IncidentForm() {
     await fetchList();
   };
 
+  /* CSV export */
   const onExportCsv = async () => {
     try {
       const blob = await exportIncidentsCsv({
@@ -160,36 +172,28 @@ export default function IncidentForm() {
 
   const pages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
-  // ---------- ui ----------
+  /* ---------- render ---------- */
   return (
     <div className="md-page">
+      {/* Create Incident */}
       <div className="md-card">
         <div className="md-header">
           <h2 className="md-title">Create Incident</h2>
-          <div className="md-actions theme-toggle">
-            <button
-              className="btn"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            >
-              {theme === "dark" ? "🌞 Light" : "🌙 Dark"}
-            </button>
-          </div>
+          <button
+            className="btn theme-toggle"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? "🌞 Light" : "🌙 Dark"}
+          </button>
         </div>
+
         <div className="md-content">
           <div className="md-grid cols-2">
             <div className="md-field">
               <label>Title</label>
               <input className="md-input" value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
-            <div className="md-field">
-              <label>Description</label>
-              <textarea
-                className="md-textarea"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
+
             <div className="md-field">
               <label>Priority</label>
               <select
@@ -197,13 +201,22 @@ export default function IncidentForm() {
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as Priority)}
               >
-                {priorities.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
+                {PRIORITIES.map((p) => (
+                  <option key={p} value={p}>{p}</option>
                 ))}
               </select>
             </div>
+
+            <div className="md-field" style={{ gridColumn: "1 / -1" }}>
+              <label>Description</label>
+              <textarea
+                className="md-textarea"
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+
             <div className="md-field">
               <label>Status</label>
               <select
@@ -211,39 +224,37 @@ export default function IncidentForm() {
                 value={status}
                 onChange={(e) => setStatus(e.target.value as IncidentStatus)}
               >
-                {statuses.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
             </div>
+
             <div className="md-field">
               <label>Longitude</label>
               <input className="md-input" value={lon} onChange={(e) => setLon(e.target.value)} />
             </div>
+
             <div className="md-field">
               <label>Latitude</label>
               <input className="md-input" value={lat} onChange={(e) => setLat(e.target.value)} />
             </div>
+
+            <div className="md-field" style={{ gridColumn: "1 / -1" }}>
+              <label>Asset ID (optional)</label>
+              <input
+                className="md-input"
+                value={assetId}
+                onChange={(e) => setAssetId(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="md-actions" style={{ marginTop: 12 }}>
-            <button className="btn-primary btn" onClick={onCreate} disabled={loading}>
+            <button className="btn-primary" onClick={onCreate} disabled={loading || !title}>
               Create Incident
             </button>
-            <button
-              className="btn"
-              onClick={() => {
-                setTitle("");
-                setDescription("");
-                setPriority("MEDIUM");
-                setStatus("OPEN");
-                setLon("-76.6122");
-                setLat("39.2904");
-              }}
-              disabled={loading}
-            >
+            <button className="btn" onClick={onResetCreate} disabled={loading}>
               Reset
             </button>
             <button className="btn" onClick={onExportCsv} disabled={loading}>
@@ -253,110 +264,35 @@ export default function IncidentForm() {
         </div>
       </div>
 
-      <div style={{ height: 16 }} />
-
-      <div className="md-card">
+      {/* Search */}
+      <div className="md-card" style={{ marginTop: 16 }}>
         <div className="md-header">
-          <div className="md-title" style={{ fontSize: 16 }}>
-            Search
-          </div>
+          <h3 className="md-title">Search</h3>
         </div>
         <div className="md-content">
           <div className="md-grid cols-2">
             <div className="md-field">
-              <label>title or description…</label>
-              <input className="md-input" value={q} onChange={(e) => setQ(e.target.value)} />
+              <label>title or description...</label>
+              <input
+                className="md-input"
+                placeholder="e.g. network"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
             </div>
+
             <div className="md-field">
               <label>Asset</label>
-              <div className="md-grid" style={{ gridTemplateColumns: "1fr auto auto", gap: 8 }}>
-                <input
-                  className="md-input"
-                  placeholder="Asset ID or blank"
-                  value={assetId}
-                  onChange={(e) => setAssetId(e.target.value)}
-                />
-                <button className="btn" onClick={onApply} disabled={loading}>
-                  Apply
-                </button>
-                <button className="btn" onClick={onClear} disabled={loading}>
-                  Clear
-                </button>
-              </div>
+              <input
+                className="md-input"
+                placeholder="Asset ID or blank"
+                value={assetId}
+                onChange={(e) => setAssetId(e.target.value)}
+              />
             </div>
-          </div>
 
-          <div style={{ marginTop: 8 }} className="muted">
-            Showing page {page} of {useMemo(() => pages, [pages])} • {total} total
-          </div>
-
-          {error && (
-            <div className="alert error" role="alert" style={{ marginTop: 8 }}>
-              {error}
-            </div>
-          )}
-
-          <div className="md-table-wrap" style={{ marginTop: 8 }}>
-            <table className="md-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 40 }}>ID</th>
-                  <th>Title</th>
-                  <th style={{ width: 120 }}>Priority</th>
-                  <th style={{ width: 160 }}>Status</th>
-                  <th style={{ width: 80 }}>Asset</th>
-                  <th style={{ width: 140 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it) => (
-                  <tr key={it.id}>
-                    <td>{it.id}</td>
-                    <td>{it.title}</td>
-                    <td>
-                      <span className={clsPriority(it.priority)}>{it.priority}</span>
-                    </td>
-                    <td>
-                      <select
-                        className="md-select"
-                        value={it.status}
-                        onChange={(e) => onStatusChange(it.id, e.target.value as IncidentStatus)}
-                      >
-                        {statuses.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>{it.assetId ?? "-"}</td>
-                    <td>
-                      {/* ⬇️ wire the button */}
-                      <button
-                        type="button"
-                        className="btn"
-                        onClick={() => openAssign(it)}
-                        aria-label={`Assign asset to incident ${it.id}`}
-                      >
-                        Assign asset
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {items.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="muted">
-                      No results
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="md-actions" style={{ marginTop: 12 }}>
-            {/* compact page-size control */}
-            <span className="pg-size">
+            <div className="md-field pg-size">
+              <label>Page size</label>
               <select
                 className="md-select"
                 value={pageSize}
@@ -365,45 +301,162 @@ export default function IncidentForm() {
                   setPage(1);
                 }}
               >
-                {[10, 20, 50].map((n) => (
-                  <option key={n} value={n}>
-                    {n} / page
-                  </option>
+                {[10, 20, 50, 100].map((n) => (
+                  <option key={n} value={n}>{n}</option>
                 ))}
               </select>
-            </span>
+            </div>
+          </div>
 
-            <div style={{ marginLeft: "auto" }} />
-            <button className="btn" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-              Prev
+          <div className="md-actions" style={{ marginTop: 12 }}>
+            <button className="btn-primary" onClick={onApply} disabled={loading}>Apply</button>
+            <button className="btn" onClick={onClear} disabled={loading}>Clear</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Incidents table */}
+      <div className="md-card" style={{ marginTop: 16 }}>
+        <div className="md-header">
+          <h3 className="md-title">Incidents</h3>
+        </div>
+
+        <div className="md-content">
+          <div className="muted" style={{ marginBottom: 8 }}>
+            Showing page {page} of {pages} • {total} total
+          </div>
+
+          {error && (
+            <div
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: 12,
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ marginBottom: 8 }}>{error}</div>
+              <button className="btn" onClick={() => setError(null)}>Dismiss</button>
+            </div>
+          )}
+
+          <div className="md-table-wrap">
+            <table className="md-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Asset</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {items.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="muted">No incidents</td>
+                  </tr>
+                )}
+
+                {items.map((it) => (
+                  <tr key={it.id}>
+                    <td>{it.id}</td>
+                    <td>{it.title}</td>
+
+                    <td>
+                      <span className={clsPriority(it.priority)}>{it.priority}</span>
+                    </td>
+
+                    <td>
+                      <select
+                        className="md-select md-select--compact"
+                        value={it.status}
+                        onChange={(e) => onStatusChange(it.id, e.target.value as IncidentStatus)}
+                      >
+                        {STATUSES.map((s) => (
+                          <option key={s} value={s}>{s.replace("_", " ")}</option>
+                        ))}
+                      </select>
+                    </td>
+
+                    {/* Asset id number (or em-dash) */}
+                    <td>{it.assetId ?? "—"}</td>
+
+                    {/* Actions column */}
+                    <td>
+                      <button className="btn" onClick={() => openAssign(it)}>
+                        {it.assetId ? "Reassign asset" : "Assign asset"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="md-actions" style={{ marginTop: 12 }}>
+            <button
+              className="btn"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ◀ Prev
             </button>
-            <button className="btn" disabled={page >= pages} onClick={() => setPage((p) => Math.min(pages, p + 1))}>
-              Next
+            <select
+              className="md-select"
+              value={page}
+              onChange={(e) => setPage(Number(e.target.value))}
+            >
+              {Array.from({ length: pages }).map((_, i) => (
+                <option key={i + 1} value={i + 1}>
+                  Page {i + 1} / {pages}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn"
+              disabled={page >= pages}
+              onClick={() => setPage((p) => Math.min(pages, p + 1))}
+            >
+              Next ▶
             </button>
           </div>
         </div>
       </div>
 
-      {/* ⬇️ modal lives once, outside the table */}
-      <AssignAssetModal
-        open={assignOpen}
-        incidentId={assignFor?.id ?? 0}
-        currentAssetId={assignFor?.assetId ?? null}
-        onClose={() => setAssignOpen(false)}
-        onAssign={async (newAssetId: number | null) => {
-          if (!assignFor) return;
-          await updateIncident(assignFor.id, { assetId: newAssetId });
-          setItems((prev) =>
-            prev.map((row) =>
-              row.id === assignFor.id ? { ...row, assetId: newAssetId ?? null } : row
-            )
-          );
-          setAssignOpen(false);
-        }}
-      />
+      {/* CSV Downloads */}
+      <div className="md-card" style={{ marginTop: 16 }}>
+        <div className="md-header">
+          <h3 className="md-title">Download Analytics CSVs</h3>
+        </div>
+        <div className="md-content">
+          <CsvDownloadButtons />
+        </div>
+      </div>
 
-      <div style={{ height: 32 }} />
-      <div className="muted">API base: {API_BASE}</div>
+      {/* Assign Asset modal (render only when ids are definite numbers) */}
+      {assignOpen && assignFor && (
+        <AssignAssetModal
+          open={assignOpen}
+          incidentId={assignFor.id}
+          currentAssetId={assignFor.assetId ?? null}
+          onClose={() => setAssignOpen(false)}
+          onAssign={async (newAssetId: number | null) => {
+            try {
+              await updateIncident(assignFor.id, { assetId: newAssetId ?? null });
+              await fetchList();
+            } catch (e: unknown) {
+              alert(`Asset assignment failed: ${getErrorMessage(e)}`);
+            } finally {
+              setAssignOpen(false);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
+/* ---------- end of file ---------- */
