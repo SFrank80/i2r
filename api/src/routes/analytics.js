@@ -1,74 +1,100 @@
-// CSV analytics endpoints: daily, by-asset, SLA breaches
-import express from "express";
-import prisma from "../db.js";
+// FILE: api/src/routes/analytics.js
+import { Router } from "express";
+import { prisma } from "../db.js";
 
-// helpers (no regex pitfalls)
-function needsCsvQuote(s) { return s.includes(",") || s.includes('"') || s.includes("\n"); }
-function csvEscape(s) { return `"${s.replace(/"/g, '""')}"`; }
-function asCsvValue(v) {
-  const s =
-    v == null ? "" :
-    typeof v === "string" ? v :
-    typeof v === "number" ? String(v) :
-    typeof v === "boolean" ? (v ? "true" : "false") :
-    new Date(v).toString() !== "Invalid Date" ? new Date(v).toISOString() :
-    JSON.stringify(v);
-  return needsCsvQuote(s) ? csvEscape(s) : s;
+const router = Router();
+
+/* ------------------------------- helpers ------------------------------- */
+
+function fmtDate(d) {
+  if (!(d instanceof Date)) d = new Date(d);
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+function csvEscape(v) {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function sendCsv(res, filename, rows) {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  if (!rows || rows.length === 0) return res.send("");
+  const headers = Object.keys(rows[0]);
+  const lines = [
+    headers.join(","),
+    ...rows.map((r) => headers.map((h) => csvEscape(r[h])).join(",")),
+  ];
+  res.send(lines.join("\n"));
 }
 
-export function attachAnalyticsRoutes(app) {
-  const r = express.Router();
+/* ------------------------------- routes -------------------------------- */
 
-  // /analytics/daily.csv  -> model Daily { Day, Status, Count }
-  r.get("/daily.csv", async (_req, res) => {
-    try {
-      const rows = await prisma.daily.findMany({ orderBy: { Day: "asc" } });
-      const cols = ["Day", "Status", "Count"];
-      const csv = [cols.join(","), ...rows.map(x => [
-        asCsvValue(x.Day), asCsvValue(x.Status), asCsvValue(x.Count)
-      ].join(","))].join("\n");
+/**
+ * GET /analytics/daily.csv
+ * Incidents grouped by day × status × priority
+ */
+router.get("/daily.csv", async (_req, res) => {
+  const rows = await prisma.$queryRaw`
+    SELECT DATE("createdAt") AS day,
+           "status",
+           "priority",
+           COUNT(*)::int AS count
+    FROM "Incident"
+    GROUP BY 1,2,3
+    ORDER BY 1 ASC, 2 ASC, 3 ASC;
+  `;
 
-      res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", 'attachment; filename="daily.csv"');
-      res.send(csv);
-    } catch (e) {
-      res.status(500).json({ error: e?.message || String(e) });
-    }
-  });
+  const shaped = rows.map((r) => ({
+    day: fmtDate(r.day),
+    status: r.status,
+    priority: r.priority,
+    count: Number(r.count),
+  }));
 
-  // /analytics/by-asset.csv -> model ByAsset { AssetName, Count }
-  r.get("/by-asset.csv", async (_req, res) => {
-    try {
-      const rows = await prisma.byAsset.findMany({ orderBy: { AssetName: "asc" } });
-      const cols = ["AssetName", "Count"];
-      const csv = [cols.join(","), ...rows.map(x => [
-        asCsvValue(x.AssetName), asCsvValue(x.Count)
-      ].join(","))].join("\n");
+  sendCsv(res, "daily.csv", shaped);
+});
 
-      res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", 'attachment; filename="by-asset.csv"');
-      res.send(csv);
-    } catch (e) {
-      res.status(500).json({ error: e?.message || String(e) });
-    }
-  });
+/**
+ * GET /analytics/by-asset.csv
+ * Top assets by incident count (nulls filtered out)
+ */
+router.get("/by-asset.csv", async (_req, res) => {
+  const rows = await prisma.$queryRaw`
+    SELECT "assetId", COUNT(*)::int AS count
+    FROM "Incident"
+    WHERE "assetId" IS NOT NULL
+    GROUP BY "assetId"
+    ORDER BY count DESC, "assetId" ASC
+    LIMIT 100;
+  `;
 
-  // /analytics/sla-breaches.csv -> model SLA { CreatedAt, Status, Priority }
-  r.get("/sla-breaches.csv", async (_req, res) => {
-    try {
-      const rows = await prisma.sLA.findMany({ orderBy: { CreatedAt: "desc" } });
-      const cols = ["CreatedAt", "Status", "Priority"];
-      const csv = [cols.join(","), ...rows.map(x => [
-        asCsvValue(x.CreatedAt), asCsvValue(x.Status), asCsvValue(x.Priority)
-      ].join(","))].join("\n");
+  const shaped = rows.map((r) => ({
+    assetId: r.assetId,
+    count: Number(r.count),
+  }));
 
-      res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", 'attachment; filename="sla-breaches.csv"');
-      res.send(csv);
-    } catch (e) {
-      res.status(500).json({ error: e?.message || String(e) });
-    }
-  });
+  sendCsv(res, "by-asset.csv", shaped);
+});
 
-  app.use("/analytics", r);
-}
+/**
+ * GET /analytics/sla.csv
+ * Daily count of events where we sent the "OPEN still stale after X minutes" alert
+ */
+router.get("/sla.csv", async (_req, res) => {
+  const rows = await prisma.$queryRaw`
+    SELECT DATE("createdAt") AS day, COUNT(*)::int AS breaches
+    FROM "Event"
+    WHERE "type" = 'sla.open_stale_alert'
+    GROUP BY 1
+    ORDER BY 1 ASC;
+  `;
+
+  const shaped = rows.map((r) => ({
+    day: fmtDate(r.day),
+    breaches: Number(r.breaches),
+  }));
+
+  sendCsv(res, "sla.csv", shaped);
+});
+
+export default router;

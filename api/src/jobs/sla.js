@@ -1,20 +1,21 @@
+
+// FILE: api/src/jobs/sla.js
 // SLA worker + scheduler for incident aging alerts (BullMQ v4 – no QueueScheduler)
 // - Schedules a repeatable job (default: every 5 minutes)
-// - Scans for incidents that violate a simple SLA window
+// - Scans for incidents that violate SLA
 // - Sends an email summary via SMTP (MailHog by default)
+// - Includes a "stale OPEN after X minutes" helper and calls it each tick
 
 import { Queue, Worker } from "bullmq";
 import nodemailer from "nodemailer";
 import { prisma } from "../db.js";
+import { notifyOpenStale } from "../notifications/index.js";
 
 /* -------------------------------------------------------------------------- */
 /* Redis connection                                                           */
 /* -------------------------------------------------------------------------- */
-// Prefer REDIS_URL when provided (e.g., "redis://localhost:6379")
-// Otherwise use host/port (defaults to 'redis' for docker-compose, or 'localhost')
 function getRedisConnection() {
   if (process.env.REDIS_URL) return { url: process.env.REDIS_URL };
-
   const host =
     process.env.REDIS_HOST ||
     (process.env.DOCKER === "1" ? "redis" : "localhost");
@@ -24,7 +25,7 @@ function getRedisConnection() {
 
 const QUEUE_NAME = process.env.SLA_QUEUE_NAME || "sla-checks";
 
-// Create the queue; if Redis/DNS is unavailable, don’t crash
+// Create the queue; if Redis/DNS is unavailable, don’t crash the process.
 let queue = null;
 try {
   queue = new Queue(QUEUE_NAME, { connection: getRedisConnection() });
@@ -57,7 +58,9 @@ function makeTransport() {
 /* -------------------------------------------------------------------------- */
 export async function scheduleSlaCheck() {
   if (!queue) {
-    console.warn("[SLA] scheduleSlaCheck skipped – queue not available (Redis?)");
+    console.warn(
+      "[SLA] scheduleSlaCheck skipped – queue not available (Redis?)"
+    );
     return;
   }
 
@@ -65,7 +68,7 @@ export async function scheduleSlaCheck() {
   const jobName = "scan";
 
   try {
-    // Ensure only one repeatable exists with same key
+    // ensure only one with same pattern
     const existing = await queue.getRepeatableJobs();
     for (const r of existing) {
       if (r.name === jobName && r.pattern === pattern) {
@@ -76,14 +79,12 @@ export async function scheduleSlaCheck() {
     await queue.add(
       jobName,
       {},
-      {
-        repeat: { pattern },
-        removeOnComplete: 25,
-        removeOnFail: 100,
-      },
+      { repeat: { pattern }, removeOnComplete: 25, removeOnFail: 100 }
     );
 
-    console.log(`[SLA] Scheduled repeatable job '${jobName}' with pattern '${pattern}'`);
+    console.log(
+      `[SLA] Scheduled repeatable job '${jobName}' (pattern ${pattern})`
+    );
   } catch (err) {
     console.warn("[SLA] scheduleSlaCheck failed:", err?.message || err);
   }
@@ -105,6 +106,10 @@ export function startSlaWorker() {
     async (job) => {
       if (job.name !== "scan") return { skipped: true };
 
+      // --- QUICK RULE: alert once if OPEN for >= X minutes
+      await checkOpenStaleIncidents();
+
+      // --- STANDARD AGING SCAN (e.g., > thresholdHours)
       const now = new Date();
       const cutoff = new Date(now.getTime() - thresholdHours * 60 * 60 * 1000);
 
@@ -123,7 +128,7 @@ export function startSlaWorker() {
 
       const lines = offenders.map(
         (r) =>
-          `#${r.id} | ${r.status} | ${r.priority} | ${r.title} | created ${r.createdAt.toISOString()}`,
+          `#${r.id} | ${r.status} | ${r.priority} | ${r.title} | created ${r.createdAt.toISOString()}`
       );
 
       const info = await transport.sendMail({
@@ -142,7 +147,7 @@ export function startSlaWorker() {
         messageId: info?.messageId,
       };
     },
-    { connection: getRedisConnection() },
+    { connection: getRedisConnection() }
   );
 
   worker.on("failed", (job, err) => {
@@ -153,7 +158,52 @@ export function startSlaWorker() {
   });
 
   console.log(
-    `[SLA] Worker started on queue '${queue.name}' (threshold ${thresholdHours}h)`,
+    `[SLA] Worker started on queue '${queue.name}' (threshold ${thresholdHours}h)`
   );
   return worker;
+}
+
+// One-time email per incident after it’s been OPEN for N minutes
+export async function checkOpenStaleIncidents() {
+  const minutes = Number(process.env.SLA_OPEN_MINUTES || 10);
+  if (!Number.isFinite(minutes) || minutes <= 0) return;
+
+  const cutoff = new Date(Date.now() - minutes * 60 * 1000);
+
+  const candidates = await prisma.incident.findMany({
+    where: { status: "OPEN", createdAt: { lt: cutoff } },
+    select: { id: true },
+    take: 1000,
+  });
+  if (!candidates.length) return;
+
+  const ids = candidates.map((c) => c.id);
+  const already = await prisma.event.findMany({
+    where: { type: "sla.open_stale_alert", incidentId: { in: ids } },
+    select: { incidentId: true },
+  });
+  const alreadySet = new Set(already.map((e) => e.incidentId));
+
+  const toAlert = candidates.filter((c) => !alreadySet.has(c.id));
+  if (!toAlert.length) return;
+
+  for (const c of toAlert) {
+    try {
+      await notifyOpenStale({ incidentId: c.id, minutes });
+    } catch (err) {
+      console.warn("[SLA] notifyOpenStale failed:", err?.message || err);
+    }
+    try {
+      await prisma.event.create({
+        data: {
+          type: "sla.open_stale_alert",
+          incidentId: c.id,
+          actor: "system",
+          metadata: { minutes },
+        },
+      });
+    } catch (err) {
+      console.warn("[SLA] event log failed:", err?.message || err);
+    }
+  }
 }

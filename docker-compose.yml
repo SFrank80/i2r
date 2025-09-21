@@ -29,9 +29,11 @@ services:
 
   mailhog:
     image: mailhog/mailhog:v1.0.1
+    container_name: mailhog
+    restart: unless-stopped
     ports:
-      - "1025:1025" # SMTP
-      - "8025:8025" # Web UI
+      - "8025:8025"         # Web UI
+      - "1025:1025"         # SMTP
 
 
 volumes:
