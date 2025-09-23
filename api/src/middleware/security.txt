@@ -1,0 +1,48 @@
+// FILE: api/src/middleware/security.js
+import helmet from "helmet";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+
+export function applySecurity(app) {
+  app.use(
+    helmet({
+      contentSecurityPolicy: false, // keep simple in dev; tighten later if needed
+    })
+  );
+
+  const allow = (process.env.CORS_ALLOW_ORIGINS || "*")
+    .split(",")
+    .map((s) => s.trim());
+  app.use(
+    cors({
+      origin: (origin, cb) => {
+        if (!origin || allow.includes("*") || allow.includes(origin)) return cb(null, true);
+        return cb(new Error("CORS blocked"), false);
+      },
+      credentials: true,
+    })
+  );
+
+  // Gentle global rate limit (protects write endpoints)
+  app.use(
+    rateLimit({
+      windowMs: 60 * 1000,
+      max: 300,
+      standardHeaders: true,
+      legacyHeaders: false,
+    })
+  );
+}
+
+// very light RBAC — expects req.user injected by your auth (future)
+// for now, we allow everything unless roles were explicitly passed
+export function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!roles.length) return next();
+    const role = req.user?.role;
+    if (!role || !roles.includes(role)) {
+      return res.status(403).json({ error: "forbidden" });
+    }
+    next();
+  };
+}

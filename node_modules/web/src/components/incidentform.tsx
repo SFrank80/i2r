@@ -16,7 +16,10 @@ const PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 const STATUSES: IncidentStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
 
 function clsPriority(p: Priority) {
-  return "badge " + (p === "LOW" ? "low" : p === "MEDIUM" ? "medium" : p === "HIGH" ? "high" : "critical");
+  return (
+    "badge " +
+    (p === "LOW" ? "low" : p === "MEDIUM" ? "medium" : p === "HIGH" ? "high" : "critical")
+  );
 }
 
 function getErrorMessage(e: unknown): string {
@@ -28,6 +31,8 @@ function getErrorMessage(e: unknown): string {
     return String(e);
   }
 }
+
+const API_URL = (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:5050";
 
 /* ---------- component ---------- */
 export default function IncidentForm() {
@@ -46,6 +51,70 @@ export default function IncidentForm() {
   const [lon, setLon] = useState("-76.6122");
   const [lat, setLat] = useState("39.2904");
   const [assetId, setAssetId] = useState<string>("");
+
+  /* AI: suggestion state */
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiErr, setAiErr] = useState<string | null>(null);
+  const [aiSuggestion, setAiSuggestion] = useState<{
+    priority: Priority;
+    confidence: number;
+    inferredType?: string;
+  } | null>(null);
+
+  // AI: debounce classification when title/description change
+  useEffect(() => {
+    if (!title && !description) {
+      setAiSuggestion(null);
+      setAiErr(null);
+      return;
+    }
+    setAiErr(null);
+    setAiLoading(true);
+    const h = setTimeout(async () => {
+      try {
+        const r = await fetch(`${API_URL}/ml/classify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, description }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        setAiSuggestion({
+          priority: data.priority,
+          confidence: Math.round((data.confidence || 0) * 100) / 100,
+          inferredType: data.inferredType,
+        });
+      } catch (e: unknown) {
+        setAiErr(getErrorMessage(e));
+        setAiSuggestion(null);
+      } finally {
+        setAiLoading(false);
+      }
+    }, 450);
+    return () => clearTimeout(h);
+  }, [title, description]);
+
+  async function sendMlFeedback(
+    action: "accept" | "override",
+    suggested: { priority: Priority },
+    final: { priority: Priority }
+  ) {
+    try {
+      await fetch(`${API_URL}/ml/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, suggested, final }),
+      });
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  function acceptAi() {
+    if (!aiSuggestion) return;
+    setPriority(aiSuggestion.priority);
+    sendMlFeedback("accept", { priority: aiSuggestion.priority }, { priority: aiSuggestion.priority });
+  }
 
   /* Filters / paging */
   const [q, setQ] = useState("");
@@ -94,6 +163,15 @@ export default function IncidentForm() {
   /* Create */
   const onCreate = async () => {
     try {
+      // If user *changed* away from suggestion, log override before save
+      if (aiSuggestion && aiSuggestion.priority !== priority) {
+        sendMlFeedback(
+          "override",
+          { priority: aiSuggestion.priority },
+          { priority }
+        );
+      }
+
       await createIncident({
         title,
         description,
@@ -107,23 +185,11 @@ export default function IncidentForm() {
       setDescription("");
       setPriority("MEDIUM");
       setStatus("OPEN");
-      setLon("-76.6122");
-      setLat("39.2904");
-      setAssetId("");
+      setAiSuggestion(null);
       await fetchList();
     } catch (e: unknown) {
       alert(`Create failed: ${getErrorMessage(e)}`);
     }
-  };
-
-  const onResetCreate = () => {
-    setTitle("");
-    setDescription("");
-    setPriority("MEDIUM");
-    setStatus("OPEN");
-    setLon("-76.6122");
-    setLat("39.2904");
-    setAssetId("");
   };
 
   /* Inline status update */
@@ -202,9 +268,33 @@ export default function IncidentForm() {
                 onChange={(e) => setPriority(e.target.value as Priority)}
               >
                 {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>{p}</option>
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
                 ))}
               </select>
+
+              {/* AI: suggestion block */}
+              <div className="muted" style={{ marginTop: 6 }}>
+                {aiLoading && <span>AI analyzing…</span>}
+                {!aiLoading && aiSuggestion && (
+                  <span>
+                    AI suggestion: <strong>{aiSuggestion.priority}</strong>
+                    {typeof aiSuggestion.confidence === "number" &&
+                      ` (${Math.round(aiSuggestion.confidence * 100)}%)`}
+                    {aiSuggestion.inferredType && ` — type: ${aiSuggestion.inferredType}`}
+                    <button
+                      className="btn"
+                      style={{ marginLeft: 8 }}
+                      type="button"
+                      onClick={acceptAi}
+                    >
+                      Accept
+                    </button>
+                  </span>
+                )}
+                {!aiLoading && aiErr && <span style={{ color: "var(--danger)" }}>{aiErr}</span>}
+              </div>
             </div>
 
             <div className="md-field" style={{ gridColumn: "1 / -1" }}>
@@ -225,7 +315,9 @@ export default function IncidentForm() {
                 onChange={(e) => setStatus(e.target.value as IncidentStatus)}
               >
                 {STATUSES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                  <option key={s} value={s}>
+                    {s.replace("_", " ")}
+                  </option>
                 ))}
               </select>
             </div>
@@ -254,9 +346,6 @@ export default function IncidentForm() {
             <button className="btn-primary" onClick={onCreate} disabled={loading || !title}>
               Create Incident
             </button>
-            <button className="btn" onClick={onResetCreate} disabled={loading}>
-              Reset
-            </button>
             <button className="btn" onClick={onExportCsv} disabled={loading}>
               Export CSV
             </button>
@@ -264,15 +353,16 @@ export default function IncidentForm() {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Filters */}
       <div className="md-card" style={{ marginTop: 16 }}>
         <div className="md-header">
           <h3 className="md-title">Search</h3>
+          <div className="muted">Showing page {page} of {pages} • {total} total</div>
         </div>
         <div className="md-content">
           <div className="md-grid cols-2">
             <div className="md-field">
-              <label>title or description...</label>
+              <label>title or description…</label>
               <input
                 className="md-input"
                 placeholder="e.g. network"
@@ -280,7 +370,6 @@ export default function IncidentForm() {
                 onChange={(e) => setQ(e.target.value)}
               />
             </div>
-
             <div className="md-field">
               <label>Asset</label>
               <input
@@ -290,7 +379,6 @@ export default function IncidentForm() {
                 onChange={(e) => setAssetId(e.target.value)}
               />
             </div>
-
             <div className="md-field pg-size">
               <label>Page size</label>
               <select
@@ -302,15 +390,21 @@ export default function IncidentForm() {
                 }}
               >
                 {[10, 20, 50, 100].map((n) => (
-                  <option key={n} value={n}>{n}</option>
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
           <div className="md-actions" style={{ marginTop: 12 }}>
-            <button className="btn-primary" onClick={onApply} disabled={loading}>Apply</button>
-            <button className="btn" onClick={onClear} disabled={loading}>Clear</button>
+            <button className="btn-primary" onClick={onApply} disabled={loading}>
+              Apply
+            </button>
+            <button className="btn" onClick={onClear} disabled={loading}>
+              Clear
+            </button>
           </div>
         </div>
       </div>
@@ -319,13 +413,9 @@ export default function IncidentForm() {
       <div className="md-card" style={{ marginTop: 16 }}>
         <div className="md-header">
           <h3 className="md-title">Incidents</h3>
+          {loading && <div className="muted">Loading…</div>}
         </div>
-
         <div className="md-content">
-          <div className="muted" style={{ marginBottom: 8 }}>
-            Showing page {page} of {pages} • {total} total
-          </div>
-
           {error && (
             <div
               style={{
@@ -336,7 +426,9 @@ export default function IncidentForm() {
               }}
             >
               <div style={{ marginBottom: 8 }}>{error}</div>
-              <button className="btn" onClick={() => setError(null)}>Dismiss</button>
+              <button className="btn" onClick={() => setError(null)}>
+                Dismiss
+              </button>
             </div>
           )}
 
@@ -354,44 +446,46 @@ export default function IncidentForm() {
               </thead>
 
               <tbody>
-                {items.length === 0 && (
+                {items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="muted">No incidents</td>
+                    <td colSpan={6} className="muted">No incidents found</td>
                   </tr>
+                ) : (
+                  items.map((it) => (
+                    <tr key={it.id}>
+                      <td>{it.id}</td>
+                      <td>{it.title}</td>
+                      <td>
+                        <span className={clsPriority(it.priority)}>{it.priority}</span>
+                      </td>
+
+                      {/* Status selector */}
+                      <td>
+                        <select
+                          className="md-select md-select--compact"
+                          value={it.status}
+                          onChange={(e) =>
+                            onStatusChange(it.id, e.target.value as IncidentStatus)
+                          }
+                        >
+                          {STATUSES.map((s) => (
+                            <option key={s} value={s}>
+                              {s.replace("_", " ")}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+
+                      <td>{it.assetId ?? "—"}</td>
+
+                      <td className="asset-cell">
+                        <button className="btn" onClick={() => openAssign(it)}>
+                          {it.assetId ? "Reassign asset" : "Assign asset"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
                 )}
-
-                {items.map((it) => (
-                  <tr key={it.id}>
-                    <td>{it.id}</td>
-                    <td>{it.title}</td>
-
-                    <td>
-                      <span className={clsPriority(it.priority)}>{it.priority}</span>
-                    </td>
-
-                    <td>
-                      <select
-                        className="md-select md-select--compact"
-                        value={it.status}
-                        onChange={(e) => onStatusChange(it.id, e.target.value as IncidentStatus)}
-                      >
-                        {STATUSES.map((s) => (
-                          <option key={s} value={s}>{s.replace("_", " ")}</option>
-                        ))}
-                      </select>
-                    </td>
-
-                    {/* Asset id number (or em-dash) */}
-                    <td>{it.assetId ?? "—"}</td>
-
-                    {/* Actions column */}
-                    <td>
-                      <button className="btn" onClick={() => openAssign(it)}>
-                        {it.assetId ? "Reassign asset" : "Assign asset"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
               </tbody>
             </table>
           </div>
@@ -437,26 +531,22 @@ export default function IncidentForm() {
         </div>
       </div>
 
-      {/* Assign Asset modal (render only when ids are definite numbers) */}
-      {assignOpen && assignFor && (
+      {/* Assign Asset modal */}
+      {assignFor && (
         <AssignAssetModal
           open={assignOpen}
           incidentId={assignFor.id}
-          currentAssetId={assignFor.assetId ?? null}
+          currentAssetId={assignFor.assetId}
           onClose={() => setAssignOpen(false)}
           onAssign={async (newAssetId: number | null) => {
-            try {
+            if (assignFor) {
               await updateIncident(assignFor.id, { assetId: newAssetId ?? null });
               await fetchList();
-            } catch (e: unknown) {
-              alert(`Asset assignment failed: ${getErrorMessage(e)}`);
-            } finally {
-              setAssignOpen(false);
             }
+            setAssignOpen(false);
           }}
         />
       )}
     </div>
   );
 }
-/* ---------- end of file ---------- */

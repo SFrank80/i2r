@@ -1,0 +1,51 @@
+text,priority
+"Unexpected device reboot reported Unexpected device reboot reported. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"Wireless coverage is weak on the east floor Wireless coverage is weak on the east floor. Please verify and document the root cause.",LOW
+"Email delivery is delayed Email delivery is delayed. Escalate if service-level objectives are at risk.",CRITICAL
+"API latency is above the threshold API latency is above the threshold. Coordinate with the network team to isolate the issue.",HIGH
+"Backups are failing on the database server Backups are failing on the database server. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"Camera feed is intermittently offline Camera feed is intermittently offline. Please verify and document the root cause.",LOW
+"Packet loss on the core switch Packet loss on the core switch. Escalate if service-level objectives are at risk.",CRITICAL
+"Unauthorized login attempt detected Unauthorized login attempt detected. Coordinate with the network team to isolate the issue.",HIGH
+"Server room temperature alert Server room temperature alert. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"Investigate VPN connectivity issue Investigate VPN connectivity issue. Please verify and document the root cause.",LOW
+"Time synchronization drift detected Time synchronization drift detected. Escalate if service-level objectives are at risk.",CRITICAL
+"Access card reader malfunction Access card reader malfunction. Coordinate with the network team to isolate the issue.",HIGH
+"Slow queries detected on the analytics database Slow queries detected on the analytics database. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"Alert storms from the monitoring agent Alert storms from the monitoring agent. Please verify and document the root cause.",LOW
+"Application crash observed after the update Application crash observed after the update. Escalate if service-level objectives are at risk.",CRITICAL
+"Elevated error rate from the payment gateway Elevated error rate from the payment gateway. Coordinate with the network team to isolate the issue.",HIGH
+"Log volume spikes during business hours Log volume spikes during business hours. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"TLS certificate renewal required TLS certificate renewal required. Please verify and document the root cause.",LOW
+"Shared storage is reaching capacity Shared storage is reaching capacity. Escalate if service-level objectives are at risk.",CRITICAL
+"Firewall rule requires review Firewall rule requires review. Coordinate with the network team to isolate the issue.",HIGH
+"Unexpected device reboot reported Unexpected device reboot reported. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"Wireless coverage is weak on the east floor Wireless coverage is weak on the east floor. Please verify and document the root cause.",LOW
+"Email delivery is delayed Email delivery is delayed. Escalate if service-level objectives are at risk.",CRITICAL
+"API latency is above the threshold API latency is above the threshold. Coordinate with the network team to isolate the issue.",HIGH
+"Backups are failing on the database server Backups are failing on the database server. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"Camera feed is intermittently offline Camera feed is intermittently offline. Please verify and document the root cause.",LOW
+"Packet loss on the core switch Packet loss on the core switch. Escalate if service-level objectives are at risk.",CRITICAL
+"Unauthorized login attempt detected Unauthorized login attempt detected. Coordinate with the network team to isolate the issue.",HIGH
+"Server room temperature alert Server room temperature alert. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"Investigate VPN connectivity issue Investigate VPN connectivity issue. Please verify and document the root cause.",LOW
+"Time synchronization drift detected Time synchronization drift detected. Escalate if service-level objectives are at risk.",CRITICAL
+"Access card reader malfunction Access card reader malfunction. Coordinate with the network team to isolate the issue.",HIGH
+"Slow queries detected on the analytics database Slow queries detected on the analytics database. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"Alert storms from the monitoring agent Alert storms from the monitoring agent. Please verify and document the root cause.",LOW
+"Application crash observed after the update Application crash observed after the update. Escalate if service-level objectives are at risk.",CRITICAL
+"Elevated error rate from the payment gateway Elevated error rate from the payment gateway. Coordinate with the network team to isolate the issue.",HIGH
+"Log volume spikes during business hours Log volume spikes during business hours. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"TLS certificate renewal required TLS certificate renewal required. Please verify and document the root cause.",LOW
+"Shared storage is reaching capacity Shared storage is reaching capacity. Escalate if service-level objectives are at risk.",CRITICAL
+"Firewall rule requires review Firewall rule requires review. Coordinate with the network team to isolate the issue.",HIGH
+"Unexpected device reboot reported Unexpected device reboot reported. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"Wireless coverage is weak on the east floor Wireless coverage is weak on the east floor. Please verify and document the root cause.",LOW
+"Email delivery is delayed Email delivery is delayed. Escalate if service-level objectives are at risk.",CRITICAL
+"API latency is above the threshold API latency is above the threshold. Coordinate with the network team to isolate the issue.",HIGH
+"Backups are failing on the database server Backups are failing on the database server. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"Camera feed is intermittently offline Camera feed is intermittently offline. Please verify and document the root cause.",LOW
+"Packet loss on the core switch Packet loss on the core switch. Escalate if service-level objectives are at risk.",CRITICAL
+"Unauthorized login attempt detected Unauthorized login attempt detected. Coordinate with the network team to isolate the issue.",HIGH
+"Server room temperature alert Server room temperature alert. Confirm impact, gather evidence, and propose a fix.",MEDIUM
+"Investigate VPN connectivity issue Investigate VPN connectivity issue. Please verify and document the root cause.",LOW
