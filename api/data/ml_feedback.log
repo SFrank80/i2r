@@ -1,0 +1,10 @@
+{"ts":"2025-09-24T08:36:09.190Z","action":"accept","suggested":{"priority":"MEDIUM"},"final":{"priority":"MEDIUM"}}
+{"ts":"2025-09-24T08:36:14.412Z","action":"accept","suggested":{"priority":"MEDIUM"},"final":{"priority":"MEDIUM"}}
+{"ts":"2025-09-24T08:36:25.292Z","action":"accept","suggested":{"priority":"MEDIUM"},"final":{"priority":"MEDIUM"}}
+{"ts":"2025-09-24T08:37:10.349Z","action":"accept","suggested":{"priority":"MEDIUM"},"final":{"priority":"MEDIUM"}}
+{"ts":"2025-09-24T08:37:19.120Z","action":"override","suggested":{"priority":"MEDIUM"},"final":{"priority":"CRITICAL"}}
+{"ts":"2025-09-24T08:38:42.274Z","action":"accept","suggested":{"priority":"CRITICAL"},"final":{"priority":"CRITICAL"}}
+{"ts":"2025-09-24T08:38:54.459Z","action":"accept","suggested":{"priority":"CRITICAL"},"final":{"priority":"CRITICAL"}}
+{"ts":"2025-09-24T08:57:18.925Z","action":"override","suggested":{"priority":"MEDIUM"},"final":{"priority":"CRITICAL"}}
+{"ts":"2025-09-24T09:00:23.429Z","action":"accept","suggested":{"priority":"MEDIUM"},"final":{"priority":"MEDIUM"}}
+{"ts":"2025-09-24T09:00:31.158Z","action":"override","suggested":{"priority":"MEDIUM"},"final":{"priority":"CRITICAL"}}

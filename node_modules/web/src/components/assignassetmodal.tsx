@@ -1,73 +1,92 @@
-import { useEffect, useState } from "react";
+// FILE: web/src/components/assignassetmodal.tsx
+import { useEffect, useMemo, useState } from "react";
 
 type Props = {
-  open: boolean;
+  open?: boolean;          // supported
+  isOpen?: boolean;        // also supported
   incidentId: number;
-  currentAssetId: number | null | undefined;
+  currentAssetId: number | null;
+  onAssign: (assetId: number | null) => void | Promise<void>;
   onClose: () => void;
-  onAssign: (newAssetId: number | null) => Promise<void> | void;
 };
 
-type AssetOpt = { id: number; label: string };
+type Asset = { id: number; name: string };
 
-export default function AssignAssetModal({
-  open,
-  incidentId,
-  currentAssetId,
-  onClose,
-  onAssign,
-}: Props) {
+const API_URL = (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:5050";
+
+export default function AssignAssetModal(props: Props) {
+  const show = props.open ?? props.isOpen ?? false;
+
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [selected, setSelected] = useState<number | "none">(props.currentAssetId ?? "none");
   const [loading, setLoading] = useState(false);
-  const [assets, setAssets] = useState<AssetOpt[]>([]);
-  const [sel, setSel] = useState<string>("");
+  const [err, setErr] = useState<string | null>(null);
 
+  useEffect(() => { setSelected(props.currentAssetId ?? "none"); }, [props.currentAssetId]);
+  const { onClose } = props;
   useEffect(() => {
-    if (!open) return;
+    if (!show) return;
+    let cancelled = false;
     setLoading(true);
-    setAssets([]);
-    setSel(currentAssetId ? String(currentAssetId) : "");
-    fetch("/assets")
-      .then((r) => r.json())
-      .then((data) => setAssets(data.items || []))
-      .catch(() => setAssets([]))
-      .finally(() => setLoading(false));
-  }, [open, currentAssetId]);
+    setErr(null);
+    fetch(`${API_URL}/assets`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const list = await r.json();
+        if (!cancelled) setAssets(list as Asset[]);
+      })
+      .catch((e) => !cancelled && setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => !cancelled && setLoading(false));
+    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onEsc);
+    return () => { cancelled = true; window.removeEventListener("keydown", onEsc); };
+  }, [show, onClose]);
 
-  if (!open) return null;
+  const canSave = useMemo(() => !loading, [loading]);
+
+  if (!show) return null;
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <h3 className="md-title">Assign asset to incident #{incidentId}</h3>
-
-        <div className="md-field">
-          <label>Asset</label>
-          <select
-            className="md-select"
-            value={sel}
-            onChange={(e) => setSel(e.target.value)}
-            disabled={loading}
-          >
-            <option value="">— No asset —</option>
-            {assets.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.label}
-              </option>
-            ))}
-          </select>
-          {loading && <div className="muted" style={{ marginTop: 6 }}>Loading assets…</div>}
-          {!loading && assets.length === 0 && (
-            <div className="muted" style={{ marginTop: 6 }}>
-              No assets found (seed may be empty).
-            </div>
-          )}
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,.45)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999,
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) props.onClose(); }}
+    >
+      <div className="md-card" style={{ maxWidth: 520, width: "92%", boxShadow: "0 10px 30px rgba(0,0,0,.35)" }}>
+        <div className="md-header">
+          <h3 className="md-title">Assign asset</h3>
         </div>
-
-        <div className="md-actions">
-          <button className="btn" onClick={onClose}>Cancel</button>
+        <div className="md-content">
+          {err && <div className="muted" style={{ color: "var(--danger)" }}>{err}</div>}
+          <div className="md-field">
+            <label htmlFor="assetSelect">Choose asset</label>
+            <select
+              id="assetSelect"
+              className="md-select"
+              value={selected === "none" ? "" : String(selected)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSelected(v ? Number(v) : "none");
+              }}
+              disabled={loading}
+            >
+              <option value="">— no asset —</option>
+              {assets.map((a) => (
+                <option key={a.id} value={a.id}>{a.id} · {a.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="md-actions" style={{ gap: 8, padding: 12 }}>
+          <button className="btn" onClick={props.onClose}>Cancel</button>
           <button
             className="btn-primary"
-            onClick={() => onAssign(sel ? Number(sel) : null)}
+            disabled={!canSave}
+            onClick={() => props.onAssign(selected === "none" ? null : Number(selected))}
           >
             Save
           </button>

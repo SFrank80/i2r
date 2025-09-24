@@ -13,6 +13,7 @@
     "check": "npm run typecheck && npm run lint"
   },
   "dependencies": {
+    "@arcgis/core": "^4.33.14",
     "esri-leaflet": "^3.0.19",
     "esri-leaflet-vector": "^4.3.1",
     "leaflet": "^1.9.4",

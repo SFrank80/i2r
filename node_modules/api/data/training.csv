@@ -1,51 +1,103 @@
 text,priority
-"Unexpected device reboot reported Unexpected device reboot reported. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"Wireless coverage is weak on the east floor Wireless coverage is weak on the east floor. Please verify and document the root cause.",LOW
-"Email delivery is delayed Email delivery is delayed. Escalate if service-level objectives are at risk.",CRITICAL
-"API latency is above the threshold API latency is above the threshold. Coordinate with the network team to isolate the issue.",HIGH
-"Backups are failing on the database server Backups are failing on the database server. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"Camera feed is intermittently offline Camera feed is intermittently offline. Please verify and document the root cause.",LOW
-"Packet loss on the core switch Packet loss on the core switch. Escalate if service-level objectives are at risk.",CRITICAL
-"Unauthorized login attempt detected Unauthorized login attempt detected. Coordinate with the network team to isolate the issue.",HIGH
-"Server room temperature alert Server room temperature alert. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"Investigate VPN connectivity issue Investigate VPN connectivity issue. Please verify and document the root cause.",LOW
-"Time synchronization drift detected Time synchronization drift detected. Escalate if service-level objectives are at risk.",CRITICAL
-"Access card reader malfunction Access card reader malfunction. Coordinate with the network team to isolate the issue.",HIGH
-"Slow queries detected on the analytics database Slow queries detected on the analytics database. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"Alert storms from the monitoring agent Alert storms from the monitoring agent. Please verify and document the root cause.",LOW
-"Application crash observed after the update Application crash observed after the update. Escalate if service-level objectives are at risk.",CRITICAL
-"Elevated error rate from the payment gateway Elevated error rate from the payment gateway. Coordinate with the network team to isolate the issue.",HIGH
-"Log volume spikes during business hours Log volume spikes during business hours. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"TLS certificate renewal required TLS certificate renewal required. Please verify and document the root cause.",LOW
-"Shared storage is reaching capacity Shared storage is reaching capacity. Escalate if service-level objectives are at risk.",CRITICAL
-"Firewall rule requires review Firewall rule requires review. Coordinate with the network team to isolate the issue.",HIGH
-"Unexpected device reboot reported Unexpected device reboot reported. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"Wireless coverage is weak on the east floor Wireless coverage is weak on the east floor. Please verify and document the root cause.",LOW
-"Email delivery is delayed Email delivery is delayed. Escalate if service-level objectives are at risk.",CRITICAL
-"API latency is above the threshold API latency is above the threshold. Coordinate with the network team to isolate the issue.",HIGH
-"Backups are failing on the database server Backups are failing on the database server. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"Camera feed is intermittently offline Camera feed is intermittently offline. Please verify and document the root cause.",LOW
-"Packet loss on the core switch Packet loss on the core switch. Escalate if service-level objectives are at risk.",CRITICAL
-"Unauthorized login attempt detected Unauthorized login attempt detected. Coordinate with the network team to isolate the issue.",HIGH
-"Server room temperature alert Server room temperature alert. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"Investigate VPN connectivity issue Investigate VPN connectivity issue. Please verify and document the root cause.",LOW
-"Time synchronization drift detected Time synchronization drift detected. Escalate if service-level objectives are at risk.",CRITICAL
-"Access card reader malfunction Access card reader malfunction. Coordinate with the network team to isolate the issue.",HIGH
-"Slow queries detected on the analytics database Slow queries detected on the analytics database. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"Alert storms from the monitoring agent Alert storms from the monitoring agent. Please verify and document the root cause.",LOW
-"Application crash observed after the update Application crash observed after the update. Escalate if service-level objectives are at risk.",CRITICAL
-"Elevated error rate from the payment gateway Elevated error rate from the payment gateway. Coordinate with the network team to isolate the issue.",HIGH
-"Log volume spikes during business hours Log volume spikes during business hours. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"TLS certificate renewal required TLS certificate renewal required. Please verify and document the root cause.",LOW
-"Shared storage is reaching capacity Shared storage is reaching capacity. Escalate if service-level objectives are at risk.",CRITICAL
-"Firewall rule requires review Firewall rule requires review. Coordinate with the network team to isolate the issue.",HIGH
-"Unexpected device reboot reported Unexpected device reboot reported. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"Wireless coverage is weak on the east floor Wireless coverage is weak on the east floor. Please verify and document the root cause.",LOW
-"Email delivery is delayed Email delivery is delayed. Escalate if service-level objectives are at risk.",CRITICAL
-"API latency is above the threshold API latency is above the threshold. Coordinate with the network team to isolate the issue.",HIGH
-"Backups are failing on the database server Backups are failing on the database server. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"Camera feed is intermittently offline Camera feed is intermittently offline. Please verify and document the root cause.",LOW
-"Packet loss on the core switch Packet loss on the core switch. Escalate if service-level objectives are at risk.",CRITICAL
-"Unauthorized login attempt detected Unauthorized login attempt detected. Coordinate with the network team to isolate the issue.",HIGH
-"Server room temperature alert Server room temperature alert. Confirm impact, gather evidence, and propose a fix.",MEDIUM
-"Investigate VPN connectivity issue Investigate VPN connectivity issue. Please verify and document the root cause.",LOW
+"Hydrant leak on 5 Ave & Columbia Rd",CRITICAL
+"Hydrant Leak on 5th street testing create incident and assignasset buttons",MEDIUM
+"Air release valve inspection Air release valve inspection. Capture GPS and update GIS as-builts after completion.",MEDIUM
+"Valve locating required Valve locating required. Capture GPS and update GIS as-builts after completion.",MEDIUM
+"AMI endpoint replacement scheduled AMI endpoint replacement scheduled. Capture GPS and update GIS as-builts after completion.",LOW
+"Meter re-read requested Meter re-read requested. Document photos, close valves as needed, and notify communications.",LOW
+"Service turn-off request Service turn-off request. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Service turn-on request Service turn-on request. Capture GPS and update GIS as-builts after completion.",LOW
+"Hydrant flushing needed Hydrant flushing needed. Coordinate with operations; escalate if service levels are at risk.",LOW
+"GIS update required GIS update required. Coordinate with operations; escalate if service levels are at risk.",MEDIUM
+"Closeout documentation pending Closeout documentation pending. Dispatch crew, verify safety, and protect the public.",LOW
+"Work order follow-up Work order follow-up. Dispatch crew, verify safety, and protect the public.",LOW
+"Customer callback requested Customer callback requested. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Door hanger distribution needed Door hanger distribution needed. Dispatch crew, verify safety, and protect the public.",LOW
+"Public notification required Public notification required. Capture GPS and update GIS as-builts after completion.",MEDIUM
+"Council office inquiry Council office inquiry. Dispatch crew, verify safety, and protect the public.",LOW
+"Media inquiry about incident Media inquiry about incident. Capture GPS and update GIS as-builts after completion.",LOW
+"Police assist requested for closure Police assist requested for closure. Capture GPS and update GIS as-builts after completion.",LOW
+"Traffic control requested Traffic control requested. Document photos, close valves as needed, and notify communications.",MEDIUM
+"Permanent pavement restoration Permanent pavement restoration. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Temporary asphalt patch needed Temporary asphalt patch needed. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Brown water after repair Brown water after repair. Capture GPS and update GIS as-builts after completion.",MEDIUM
+"Air in distribution lines Air in distribution lines. Document photos, close valves as needed, and notify communications.",LOW
+"Dead-end main requires flushing Dead-end main requires flushing. Dispatch crew, verify safety, and protect the public.",LOW
+"Sewer backup inside home Sewer backup inside home. Document photos, close valves as needed, and notify communications.",CRITICAL
+"Flooded basement complaint Flooded basement complaint. Dispatch crew, verify safety, and protect the public.",MEDIUM
+"Permit issue holding work Permit issue holding work. Capture GPS and update GIS as-builts after completion.",LOW
+"Capital project conflict in field Capital project conflict in field. Coordinate with operations; escalate if service levels are at risk.",LOW
+"CIPP liner curing delay CIPP liner curing delay. Dispatch crew, verify safety, and protect the public.",LOW
+"Root intrusion confirmed by CCTV Root intrusion confirmed by CCTV. Capture GPS and update GIS as-builts after completion.",LOW
+"Backyard easement access needed Backyard easement access needed. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Sewer odor complaint from customer Sewer odor complaint from customer. Coordinate with operations; escalate if service levels are at risk.",MEDIUM
+"Meter tampering suspected Meter tampering suspected. Capture GPS and update GIS as-builts after completion.",MEDIUM
+"Damaged meter lid Damaged meter lid. Dispatch crew, verify safety, and protect the public.",LOW
+"Storm flooding reports Storm flooding reports. Dispatch crew, verify safety, and protect the public.",LOW
+"Road closure impacting crew Road closure impacting crew. Dispatch crew, verify safety, and protect the public.",LOW
+"Site access blocked by contractor Site access blocked by contractor. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Gate stuck at yard Gate stuck at yard. Coordinate with operations; escalate if service levels are at risk.",HIGH
+"Security fence breach Security fence breach. Document photos, close valves as needed, and notify communications.",LOW
+"Wildlife intrusion at facility Wildlife intrusion at facility. Dispatch crew, verify safety, and protect the public.",LOW
+"Safety incident (no injury) Safety incident (no injury). Document photos, close valves as needed, and notify communications.",LOW
+"Minor chemical spill contained Minor chemical spill contained. Capture GPS and update GIS as-builts after completion.",LOW
+"Chemical delivery delay Chemical delivery delay. Document photos, close valves as needed, and notify communications.",LOW
+"Membrane integrity breach alarm Membrane integrity breach alarm. Capture GPS and update GIS as-builts after completion.",MEDIUM
+"UV system fault UV system fault. Document photos, close valves as needed, and notify communications.",LOW
+"pH analyzer fault pH analyzer fault. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Ammonia analyzer fault Ammonia analyzer fault. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Cybersecurity alert on SCADA Cybersecurity alert on SCADA. Document photos, close valves as needed, and notify communications.",LOW
+"SCADA alarm flood (nuisance) SCADA alarm flood (nuisance). Coordinate with operations; escalate if service levels are at risk.",MEDIUM
+"Tank mixer failure Tank mixer failure. Dispatch crew, verify safety, and protect the public.",LOW
+"Interconnect closed after event Interconnect closed after event. Document photos, close valves as needed, and notify communications.",LOW
+"Emergency interconnect opened Emergency interconnect opened. Dispatch crew, verify safety, and protect the public.",LOW
+"Bypass pump setup requested Bypass pump setup requested. Dispatch crew, verify safety, and protect the public.",LOW
+"Flow meter calibration due Flow meter calibration due. Dispatch crew, verify safety, and protect the public.",LOW
+"Pressure sensor failure Pressure sensor failure. Document photos, close valves as needed, and notify communications.",LOW
+"Facility on generator after outage Facility on generator after outage. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Generator test failed at site Generator test failed at site. Capture GPS and update GIS as-builts after completion.",LOW
+"Cathodic protection alarm Cathodic protection alarm. Dispatch crew, verify safety, and protect the public.",MEDIUM
+"Pipe corrosion identified Pipe corrosion identified. Coordinate with operations; escalate if service levels are at risk.",LOW
+"CCTV inspection required CCTV inspection required. Coordinate with operations; escalate if service levels are at risk.",MEDIUM
+"811 locate request received 811 locate request received. Document photos, close valves as needed, and notify communications.",LOW
+"Illegal dumping into sewer Illegal dumping into sewer. Dispatch crew, verify safety, and protect the public.",LOW
+"Unauthorized hydrant use Unauthorized hydrant use. Dispatch crew, verify safety, and protect the public.",LOW
+"Lead service line verification visit Lead service line verification visit. Coordinate with operations; escalate if service levels are at risk.",HIGH
+"Meter pit flooded Meter pit flooded. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Road collapse risk over main Road collapse risk over main. Document photos, close valves as needed, and notify communications.",LOW
+"Third-party damage from construction Third-party damage from construction. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Sinkhole forming near main Sinkhole forming near main. Dispatch crew, verify safety, and protect the public.",LOW
+"Inflow and infiltration observed Inflow and infiltration observed. Capture GPS and update GIS as-builts after completion.",LOW
+"Grease blockage in gravity main Grease blockage in gravity main. Document photos, close valves as needed, and notify communications.",HIGH
+"Sewer main blockage suspected Sewer main blockage suspected. Coordinate with operations; escalate if service levels are at risk.",HIGH
+"Tank overflow alarm Tank overflow alarm. Coordinate with operations; escalate if service levels are at risk.",CRITICAL
+"Reservoir low level alarm Reservoir low level alarm. Document photos, close valves as needed, and notify communications.",MEDIUM
+"Treatment plant turbidity high (NTU) Treatment plant turbidity high (NTU). Capture GPS and update GIS as-builts after completion.",LOW
+"Hydrant out of service Hydrant out of service. Document photos, close valves as needed, and notify communications.",LOW
+"Valve exercising required Valve exercising required. Coordinate with operations; escalate if service levels are at risk.",MEDIUM
+"Water main break on 12"" ductile iron Water main break on 12"" ductile iron. Document photos, close valves as needed, and notify communications.",CRITICAL
+"Frozen service line Frozen service line. Document photos, close valves as needed, and notify communications.",HIGH
+"PRV stuck closed PRV stuck closed. Dispatch crew, verify safety, and protect the public.",HIGH
+"PRV stuck open PRV stuck open. Document photos, close valves as needed, and notify communications.",HIGH
+"Air release valve leaking Air release valve leaking. Capture GPS and update GIS as-builts after completion.",MEDIUM
+"Backflow device failure noted Backflow device failure noted. Dispatch crew, verify safety, and protect the public.",LOW
+"AMI endpoint offline AMI endpoint offline. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Grit chamber blockage Grit chamber blockage. Document photos, close valves as needed, and notify communications.",HIGH
+"Clarifier scraper jammed Clarifier scraper jammed. Capture GPS and update GIS as-builts after completion.",LOW
+"Filter backwash failure at plant Filter backwash failure at plant. Dispatch crew, verify safety, and protect the public.",LOW
+"SCADA communications loss at RTU SCADA communications loss at RTU. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Pump failure at Station A Pump failure at Station A. Coordinate with operations; escalate if service levels are at risk.",HIGH
+"Lift station power failure Lift station power failure. Document photos, close valves as needed, and notify communications.",CRITICAL
+"Odor complaint at pump station Odor complaint at pump station. Capture GPS and update GIS as-builts after completion.",MEDIUM
+"Manhole surcharge during storm Manhole surcharge during storm. Coordinate with operations; escalate if service levels are at risk.",LOW
+"Sewer overflow reported near creek Sewer overflow reported near creek. Capture GPS and update GIS as-builts after completion.",CRITICAL
+"Chlorine residual above target Chlorine residual above target. Capture GPS and update GIS as-builts after completion.",HIGH
+"Chlorine residual below target Chlorine residual below target. Coordinate with operations; escalate if service levels are at risk.",HIGH
+"High pressure alarm at PRV High pressure alarm at PRV. Dispatch crew, verify safety, and protect the public.",HIGH
+"Low pressure in Zone 3 Low pressure in Zone 3. Document photos, close valves as needed, and notify communications.",HIGH
+"No water pressure on block No water pressure on block. Coordinate with operations; escalate if service levels are at risk.",CRITICAL
+"Discolored water complaint after flushing Discolored water complaint after flushing. Coordinate with operations; escalate if service levels are at risk.",MEDIUM
+"Valve stuck partially closed Valve stuck partially closed. Dispatch crew, verify safety, and protect the public.",HIGH
+"Service line leak reported by customer Service line leak reported by customer. Dispatch crew, verify safety, and protect the public.",HIGH
+"Water main break on 8"" cast iron Water main break on 8"" cast iron. Capture GPS and update GIS as-builts after completion.",CRITICAL
+"Hydrant leak at corner Hydrant leak at corner. Dispatch crew, verify safety, and protect the public.",HIGH

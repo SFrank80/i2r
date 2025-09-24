@@ -1,102 +1,146 @@
-import { promises as fs } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+// api/src/ml/train.js
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import os from "node:os";
+import natural from "natural";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const __dirname = path.dirname(__filename);
 
-const CSV_PATH   = path.resolve(__dirname, "../data/training.csv");
-const MODEL_PATH = path.resolve(__dirname, "../models/priority-nb.json");
+/** Prefer the fresh export in api/data; fall back to api/src/data only if needed */
+const trainingCandidates = [
+  path.resolve(__dirname, "../../data/training.csv"),
+  path.resolve(__dirname, "../data/training.csv"),
+];
 
-function tokenize(text) {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
+/* ---------- tiny CSV helpers (handle quotes, commas) ---------- */
+function splitCsvLine(line) {
+  const out = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQ && line[i + 1] === '"') {
+        cur += '"'; i++;        // escaped quote
+      } else {
+        inQ = !inQ;
+      }
+    } else if (c === "," && !inQ) {
+      out.push(cur); cur = "";
+    } else {
+      cur += c;
+    }
+  }
+  out.push(cur);
+  return out;
 }
 
-function parseCsv(raw) {
-  const lines = raw.trim().split(/\r?\n/);
-  const header = lines.shift().split(",").map(h => h.trim());
-  const rows = [];
-  for (const line of lines) {
-    // very simple split; export_training.csv shouldn’t have embedded commas
-    const cells = line.split(",").map(s => s.trim());
-    const r = {};
-    header.forEach((h, i) => (r[h] = cells[i] ?? ""));
-    rows.push(r);
+function findCol(header, names) {
+  const lower = header.map((h) => h.trim().toLowerCase());
+  for (const n of names) {
+    const idx = lower.indexOf(n);
+    if (idx >= 0) return idx;
   }
-  return rows;
+  return -1;
+}
+
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+  if (lines.length === 0) return { header: [], rows: [] };
+
+  const header = splitCsvLine(lines[0]);
+  const titleIdx = findCol(header, ["title", "subject", "name"]);
+  const descIdx  = findCol(header, ["description", "details", "detail", "notes", "note", "body", "text"]);
+  const prioIdx  = findCol(header, ["priority", "label", "class", "severity"]);
+
+  const allowed = new Set(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
+  const rows = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitCsvLine(lines[i]);
+    const title = titleIdx >= 0 ? (cols[titleIdx] ?? "") : "";
+    const description = descIdx >= 0 ? (cols[descIdx] ?? "") : "";
+    const pr = (prioIdx >= 0 ? cols[prioIdx] ?? "" : "").toUpperCase().trim();
+    if (!allowed.has(pr)) continue;
+
+    const textRaw = `${title} ${description}`.trim();
+    if (!textRaw) continue; // skip empty text rows
+
+    rows.push({ text: textRaw, priority: pr });
+  }
+  return { header, rows, indices: { titleIdx, descIdx, prioIdx } };
+}
+
+function normalize(s) {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function main() {
-  const raw = await fs.readFile(CSV_PATH, "utf8");
-  const rows = parseCsv(raw);
+  // Locate CSV
+  let trainingCsvPath = null;
+  let csvText = null;
+  for (const candidate of trainingCandidates) {
+    try {
+      csvText = await readFile(candidate, "utf8");
+      trainingCsvPath = candidate;
+      break;
+    } catch { /* keep trying */ }
+  }
+  if (!csvText) {
+    throw new Error(`training.csv not found. Tried: ${trainingCandidates.join(" , ")}`);
+  }
+  console.log(`[ML] Using training: ${trainingCsvPath}`);
 
-  // counts
-  const labels = new Set();
-  const docsPerLabel = {};
-  const tokenCounts = {};  // label -> token -> count
-  const totalTokens = {};  // label -> total token count
-  const vocabAll = new Set();
+  // Parse + validate
+  const parsed = parseCsv(csvText);
+  const { rows, indices } = parsed;
+  if (rows.length === 0) {
+    console.error("[ML] Parsed header:", parsed.header);
+    console.error("[ML] Column indices:", indices);
+    throw new Error("No valid rows parsed from training.csv (check header names and content).");
+  }
+  console.log(`[ML] Training on ${rows.length} examples.`);
+  console.log(`[ML] Column indices -> title:${indices.titleIdx} description:${indices.descIdx} priority:${indices.prioIdx}`);
 
+  // Train Bayes
+  const classifier = new natural.BayesClassifier();
   for (const r of rows) {
-    const label = String(r.priority || "MEDIUM").toUpperCase();
-    const text = `${r.title ?? ""} ${r.description ?? ""}`;
-    const tokens = tokenize(text);
-
-    labels.add(label);
-    docsPerLabel[label] = (docsPerLabel[label] ?? 0) + 1;
-    tokenCounts[label] = tokenCounts[label] || {};
-    totalTokens[label] = totalTokens[label] || 0;
-
-    for (const t of tokens) {
-      vocabAll.add(t);
-      tokenCounts[label][t] = (tokenCounts[label][t] ?? 0) + 1;
-      totalTokens[label] += 1;
-    }
+    const text = normalize(r.text);
+    if (text) classifier.addDocument(text, r.priority);
   }
 
-  const labelList = [...labels];
-  const totalDocs = rows.length || 1;
-  const vocabSize = vocabAll.size || 1;
-
-  // priors (log)
-  const priors = {};
-  for (const l of labelList) {
-    priors[l] = Math.log((docsPerLabel[l] ?? 0.5) / totalDocs);
+  if (!classifier.docs || classifier.docs.length === 0) {
+    throw new Error("No documents added to classifier; check training data.");
   }
 
-  // likelihoods (log) with Laplace smoothing
-  const vocab = {};
-  for (const l of labelList) {
-    const map = {};
-    const denom = (totalTokens[l] ?? 0) + vocabSize; // Laplace
-    for (const t of vocabAll) {
-      const count = (tokenCounts[l]?.[t] ?? 0) + 1;
-      map[t] = Math.log(count / denom);
-    }
-    vocab[l] = map;
-  }
+  classifier.train();
 
-  const model = {
-    labels: labelList,
-    priors,
-    vocab,
-    meta: {
-      totalDocs,
-      vocabSize,
-      updatedAt: new Date().toISOString()
-    }
+  // ---- SAVE: avoid .toJSON(), use .save() then read back the JSON it wrote ----
+  const modelsDir = path.resolve(__dirname, "../../models");
+  await mkdir(modelsDir, { recursive: true });
+
+  const tmpFile = path.join(os.tmpdir(), `nb-${Date.now()}.json`);
+  await new Promise((resolve, reject) => {
+    classifier.save(tmpFile, (err) => (err ? reject(err) : resolve()));
+  });
+  const naturalJson = JSON.parse(await readFile(tmpFile, "utf8"));
+
+  const outFile = path.join(modelsDir, "priority-nb.json");
+  const payload = {
+    _eventsCount: rows.length,
+    classifier: naturalJson,          // what service.js restores from
   };
-
-  await fs.mkdir(path.dirname(MODEL_PATH), { recursive: true });
-  await fs.writeFile(MODEL_PATH, JSON.stringify(model));
-  console.log(`Model saved: ${MODEL_PATH}`);
+  await writeFile(outFile, JSON.stringify(payload), "utf8");
+  console.log(`[ML] Model saved to ${outFile}`);
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error("Training failed:", err);
   process.exit(1);
 });

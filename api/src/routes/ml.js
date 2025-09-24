@@ -1,12 +1,11 @@
+// api/src/routes/ml.js
 import { Router } from "express";
-import { classifyHandler } from "../ml/service.js";
+import { classifyHandler, feedbackHandler } from "../ml/service.js";
 
 const router = Router();
 
-// used by the UI for the “AI suggestion” chip
+// Your app mounts this router at `/ml` in src/index.js
 router.post("/classify", classifyHandler);
-
-// quiet the console 404s (no-op feedback endpoint)
-router.post("/feedback", (_req, res) => res.sendStatus(204));
+router.post("/feedback", feedbackHandler); // 204 no-op to stop 404 spam in console
 
 export default router;
