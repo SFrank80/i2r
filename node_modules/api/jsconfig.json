@@ -6,7 +6,8 @@
     "allowJs": true,
     "checkJs": false,
     "resolveJsonModule": true,
-    "baseUrl": "./src"
+    "types": ["node"],
+    "ignoreDeprecations": "6.0"
   },
   "include": ["src/**/*.js"]
 }

@@ -5,23 +5,26 @@ import {
   listIncidents,
   updateIncident,
   exportIncidentsCsv,
+  classify,
+  mlFeedback,
+  geocode,
+  type Incident,
+  type IncidentStatus,
+  type Priority,
 } from "../api/incidents";
-import type { Incident, IncidentStatus, Priority } from "../api/incidents";
 
 import AssignAssetModal from "./assignassetmodal";
 import CsvDownloadButtons from "./csvdownloadbuttons";
+import MapPanel from "./mappanel";
+import IncidentDetailsModal from "./incidentdetailsmodal";
 
 /* ---------- constants / helpers ---------- */
 const PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 const STATUSES: IncidentStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
 
 function clsPriority(p: Priority) {
-  return (
-    "badge " +
-    (p === "LOW" ? "low" : p === "MEDIUM" ? "medium" : p === "HIGH" ? "high" : "critical")
-  );
+  return "badge " + (p === "LOW" ? "low" : p === "MEDIUM" ? "medium" : p === "HIGH" ? "high" : "critical");
 }
-
 function getErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (typeof e === "string") return e;
@@ -30,7 +33,10 @@ function getErrorMessage(e: unknown): string {
 
 const API_URL = (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:5050";
 
-/* ---------- component ---------- */
+/** Map start */
+const DEFAULT_CENTER: [number, number] = [39.29, -76.61];
+const DEFAULT_ZOOM = 10;
+
 export default function IncidentForm() {
   /* Theme toggle */
   const [theme, setTheme] = useState<string>(() => localStorage.getItem("theme") || "light");
@@ -48,28 +54,22 @@ export default function IncidentForm() {
   const [lat, setLat] = useState("39.2904");
   const [assetId, setAssetId] = useState<string>("");
 
+  /* Address input (wide) + message */
+  const [address, setAddress] = useState("");
+  const [foundMsg, setFoundMsg] = useState<string>("");
+
   /* AI suggestion */
   const [aiLoading, setAiLoading] = useState(false);
   const [aiErr, setAiErr] = useState<string | null>(null);
   const [aiSuggestion, setAiSuggestion] = useState<{ priority: Priority; confidence: number; inferredType?: string } | null>(null);
 
   useEffect(() => {
-    if (!title && !description) {
-      setAiSuggestion(null);
-      setAiErr(null);
-      return;
-    }
+    if (!title && !description) { setAiSuggestion(null); setAiErr(null); return; }
     setAiErr(null);
     setAiLoading(true);
     const h = setTimeout(async () => {
       try {
-        const r = await fetch(`${API_URL}/ml/classify`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, description }),
-        });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = await r.json();
+        const data = await classify({ title, description });
         setAiSuggestion({
           priority: data.priority,
           confidence: Math.round((data.confidence || 0) * 100) / 100,
@@ -85,26 +85,16 @@ export default function IncidentForm() {
     return () => clearTimeout(h);
   }, [title, description]);
 
-  async function sendMlFeedback(
-    action: "accept" | "override",
-    suggested: { priority: Priority },
-    final: { priority: Priority }
-  ) {
-    try {
-      await fetch(`${API_URL}/ml/feedback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, suggested, final }),
-      });
-    } catch {
-      // Ignore errors from ML feedback
-    }
-  }
-
   function acceptAi() {
     if (!aiSuggestion) return;
     setPriority(aiSuggestion.priority);
-    sendMlFeedback("accept", { priority: aiSuggestion.priority }, { priority: aiSuggestion.priority });
+    if (aiSuggestion) {
+      mlFeedback({
+        action: "accept",
+        suggested: { priority: aiSuggestion.priority },
+        final: { priority: aiSuggestion.priority },
+      });
+    }
   }
 
   /* Filters / paging */
@@ -121,13 +111,8 @@ export default function IncidentForm() {
   /* Assign modal state */
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignFor, setAssignFor] = useState<{ id: number; assetId: number | null } | null>(null);
+  const openAssign = (it: Incident) => { setAssignFor({ id: it.id, assetId: it.assetId ?? null }); setAssignOpen(true); };
 
-  function openAssign(it: Incident) {
-    setAssignFor({ id: it.id, assetId: it.assetId ?? null });
-    setAssignOpen(true); // <- this is what drives the modal now
-  }
-
-  /* Fetch list */
   const fetchList = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -138,7 +123,6 @@ export default function IncidentForm() {
         pageSize,
         assetId: assetId ? Number(assetId) : undefined,
       });
-      // NOTE: listIncidents returns { total, items }
       setItems(res.items);
       setTotal(res.total);
     } catch (e) {
@@ -150,11 +134,34 @@ export default function IncidentForm() {
 
   useEffect(() => { fetchList(); }, [fetchList]);
 
+  /* ---------- map focus + refresh ---------- */
+  const [mapFocus, setMapFocus] = useState<{ lat: number; lon: number; ts: number } | null>(null);
+  const [mapBump, setMapBump] = useState(0);
+
+  /* Heuristic: geocode from Title */
+  useEffect(() => {
+    const titleTrim = title.trim();
+    if (titleTrim.length < 8) return;
+    const looksLikePlace = /\d{2,}|(corner| at | & )/i.test(titleTrim);
+    if (!looksLikePlace) return;
+    const runner = setTimeout(async () => {
+      try {
+        const j = await geocode(titleTrim);
+        if (j.ok && typeof j.lat === "number" && typeof j.lon === "number") {
+          setMapFocus({ lat: j.lat, lon: j.lon, ts: Date.now() });
+        }
+      } catch {
+        // intentionally ignore geocode errors
+      }
+    }, 800);
+    return () => clearTimeout(runner);
+  }, [title]);
+
   /* Create */
   const onCreate = async () => {
     try {
       if (aiSuggestion && aiSuggestion.priority !== priority) {
-        sendMlFeedback("override", { priority: aiSuggestion.priority }, { priority });
+        mlFeedback({ action: "override", suggested: { priority: aiSuggestion.priority }, final: { priority } });
       }
       await createIncident({
         title,
@@ -165,48 +172,35 @@ export default function IncidentForm() {
         lat: Number(lat),
         assetId: assetId ? Number(assetId) : undefined,
       });
-      onReset();            // keep the page tidy after a create
-      await fetchList();    // refresh list
+      onReset();
+      await fetchList();
+      setMapBump((x) => x + 1); // refresh map layer
     } catch (e) {
       alert(`Create failed: ${getErrorMessage(e)}`);
     }
   };
 
-  /* NEW: Reset button behavior (restores defaults without touching the list) */
   const onReset = () => {
-    setTitle("");
-    setDescription("");
-    setPriority("MEDIUM");
-    setStatus("OPEN");
-    setLon("-76.6122");
-    setLat("39.2904");
-    setAssetId("");
-    setAiSuggestion(null);
-    setAiErr(null);
+    setTitle(""); setDescription("");
+    setPriority("MEDIUM"); setStatus("OPEN");
+    setLon("-76.6122"); setLat("39.2904");
+    setAssetId(""); setAiSuggestion(null); setAiErr(null);
+    setAddress(""); setFoundMsg("");
   };
 
-  /* Inline status update */
   const onStatusChange = async (id: number, s: IncidentStatus) => {
-    try {
-      await updateIncident(id, { status: s });
-      await fetchList();
-    } catch (e) {
-      alert(`Update failed: ${getErrorMessage(e)}`);
-    }
+    try { await updateIncident(id, { status: s }); await fetchList(); }
+    catch (e) { alert(`Update failed: ${getErrorMessage(e)}`); }
   };
 
-  /* Filters */
   const onApply = async () => { setPage(1); await fetchList(); };
   const onClear = async () => { setQ(""); setAssetId(""); setPage(1); await fetchList(); };
 
-  /* CSV export */
   const onExportCsv = async () => {
     try {
       const blob = await exportIncidentsCsv({
         q,
         assetId: assetId ? Number(assetId) : undefined,
-        page,
-        pageSize,
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -219,6 +213,29 @@ export default function IncidentForm() {
   };
 
   const pages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
+
+  /* Use address -> geocode and fill lon/lat + focus map for 30s */
+  async function onUseAddress() {
+    const q = (address || title).trim();
+    if (!q) { setFoundMsg("Enter an address first."); return; }
+    try {
+      const j = await geocode(q);
+      if (!j.ok || typeof j.lat !== "number" || typeof j.lon !== "number") {
+        setFoundMsg("No match found for that address.");
+        return;
+      }
+      setFoundMsg(`Found: ${j.label || ""}`.trim());
+      setLat(String(j.lat));
+      setLon(String(j.lon));
+      setMapFocus({ lat: j.lat, lon: j.lon, ts: Date.now() }); // MapPanel handles pulsing pin for ~30s
+    } catch (e) {
+      setFoundMsg(getErrorMessage(e));
+    }
+  }
+
+  /* ---------- details modal (ID / Title click) ---------- */
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsIncident, setDetailsIncident] = useState<Incident | null>(null);
 
   /* ---------- render ---------- */
   return (
@@ -244,8 +261,6 @@ export default function IncidentForm() {
               <select className="md-select" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
                 {PRIORITIES.map((p) => (<option key={p} value={p}>{p}</option>))}
               </select>
-
-              {/* AI: suggestion */}
               <div className="muted" style={{ marginTop: 6 }}>
                 {aiLoading && <span>AI analyzing…</span>}
                 {!aiLoading && aiSuggestion && (
@@ -256,13 +271,38 @@ export default function IncidentForm() {
                     <button className="btn" style={{ marginLeft: 8 }} type="button" onClick={acceptAi}>Accept</button>
                   </span>
                 )}
-                {!aiLoading && aiErr && <span style={{ color: "var(--danger)" }}>{aiErr}</span>}
+                {!aiLoading && aiErr && (<span style={{ color: "var(--danger)" }}>{aiErr}</span>)}
               </div>
             </div>
 
             <div className="md-field" style={{ gridColumn: "1 / -1" }}>
               <label htmlFor="desc">Description</label>
               <textarea id="desc" className="md-textarea" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+            </div>
+
+            {/* Address row — wide input + compact button */}
+            <div className="md-field" style={{ gridColumn: "1 / -1" }}>
+              <label htmlFor="addr">Address (optional — use to auto-fill lon/lat)</label>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(320px, 1fr) 160px",
+                  gap: 12,
+                }}
+              >
+                <input
+                  id="addr"
+                  className="md-input"
+                  placeholder="e.g. 10300 Little Patuxent Pkwy, Columbia MD"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  autoComplete="street-address"
+                />
+                <button type="button" className="btn" style={{ width: "auto" }} onClick={onUseAddress}>
+                  Use address
+                </button>
+              </div>
+              {!!foundMsg && <div className="muted" style={{ marginTop: 6 }}>{foundMsg}</div>}
             </div>
 
             <div className="md-field">
@@ -290,10 +330,7 @@ export default function IncidentForm() {
 
           <div className="md-actions" style={{ marginTop: 12 }}>
             <button className="btn-primary" onClick={onCreate} disabled={loading || !title}>Create Incident</button>
-
-            {/* NEW: Reset button (the one you asked to bring back) */}
             <button className="btn" onClick={onReset} disabled={loading}>Reset</button>
-
             <button className="btn" onClick={onExportCsv} disabled={loading}>Export CSV</button>
           </div>
         </div>
@@ -348,38 +385,40 @@ export default function IncidentForm() {
             <table className="md-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Title</th>
-                  <th>Priority</th>
-                  <th>Status</th>
-                  <th>Asset</th>
-                  <th>Actions</th>
+                  <th>ID</th><th>Title</th><th>Priority</th><th>Status</th><th>Asset</th><th>Actions</th>
                 </tr>
               </thead>
-
               <tbody>
                 {items.length === 0 ? (
                   <tr><td colSpan={6} className="muted">No incidents found</td></tr>
                 ) : (
                   items.map((it) => (
                     <tr key={it.id}>
-                      <td>{it.id}</td>
-                      <td>{it.title}</td>
-                      <td><span className={clsPriority(it.priority)}>{it.priority}</span></td>
-
-                      {/* Status selector */}
                       <td>
-                        <select
-                          className="md-select md-select--compact"
-                          value={it.status}
-                          onChange={(e) => onStatusChange(it.id, e.target.value as IncidentStatus)}
+                        {/* Clickable but not blue link */}
+                        <button
+                          className="linklike"
+                          onClick={() => { setDetailsIncident(it); setDetailsOpen(true); }}
                         >
+                          {it.id}
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          className="linklike"
+                          onClick={() => { setDetailsIncident(it); setDetailsOpen(true); }}
+                        >
+                          {it.title}
+                        </button>
+                      </td>
+                      <td><span className={clsPriority(it.priority)}>{it.priority}</span></td>
+                      <td>
+                        <select className="md-select md-select--compact" value={it.status}
+                          onChange={(e) => onStatusChange(it.id, e.target.value as IncidentStatus)}>
                           {STATUSES.map((s) => (<option key={s} value={s}>{s.replace("_", " ")}</option>))}
                         </select>
                       </td>
-
                       <td>{it.assetId ?? "—"}</td>
-
                       <td className="asset-cell">
                         <button className="btn" onClick={() => openAssign(it)}>
                           {it.assetId ? "Reassign asset" : "Assign asset"}
@@ -396,19 +435,29 @@ export default function IncidentForm() {
           <div className="md-actions" style={{ marginTop: 12 }}>
             <button className="btn" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>◀ Prev</button>
             <select className="md-select" value={page} onChange={(e) => setPage(Number(e.target.value))}>
-              {Array.from({ length: pages }).map((_, i) => (
-                <option key={i + 1} value={i + 1}>Page {i + 1} / {pages}</option>
-              ))}
+              {Array.from({ length: pages }).map((_, i) => (<option key={i + 1} value={i + 1}>Page {i + 1} / {pages}</option>))}
             </select>
             <button className="btn" disabled={page >= pages} onClick={() => setPage((p) => Math.min(pages, p + 1))}>Next ▶</button>
           </div>
         </div>
       </div>
 
-      {/* CSV Downloads */}
+      {/* CSV Downloads (unchanged) */}
+      <CsvDownloadButtons />
+
+      {/* Operations Map */}
       <div className="md-card" style={{ marginTop: 16 }}>
-        <div className="md-header"><h3 className="md-title">Download Analytics CSVs</h3></div>
-        <div className="md-content"><CsvDownloadButtons /></div>
+        <div className="md-header"><h3 className="md-title">Operations Map</h3></div>
+        <div className="md-content">
+          <MapPanel
+            incidentsUrl={`${API_URL}/incidents/geojson?t=${mapBump}`}
+            assetsUrl={`${API_URL}/assets/geojson?t=${mapBump}`}
+            center={DEFAULT_CENTER}
+            zoom={DEFAULT_ZOOM}
+            height={480}
+            focus={mapFocus}
+          />
+        </div>
       </div>
 
       {/* Assign Asset modal */}
@@ -425,6 +474,26 @@ export default function IncidentForm() {
           }}
         />
       )}
+
+      {/* Incident Details modal (popup) */}
+      <IncidentDetailsModal
+        open={detailsOpen}
+        incident={detailsIncident}
+        onClose={() => setDetailsOpen(false)}
+        onSaved={fetchList}
+        onCenterOnMap={(plat, plon) => {
+          setDetailsOpen(false);
+          setMapFocus({ lat: plat, lon: plon, ts: Date.now() });
+        }}
+      />
+
+      {/* Local styles for linklike cells so we don't touch global css */}
+      <style>{`
+        .linklike {
+          background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+        }
+        .linklike:hover { text-decoration: underline; }
+      `}</style>
     </div>
   );
 }

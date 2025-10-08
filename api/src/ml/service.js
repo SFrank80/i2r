@@ -18,22 +18,21 @@ let LOADED_FROM = null;
 async function loadModelIfNeeded() {
   if (MODEL) return;
 
-  let raw;
   let parsed;
   let loadedPath;
 
   for (const p of MODEL_PATHS) {
     try {
-      raw = await readFile(p, "utf8");
+      const raw = await readFile(p, "utf8");
       parsed = JSON.parse(raw);
       loadedPath = p;
       break;
-    } catch { /* try next */ }
+    } catch {
+      /* try next */
+    }
   }
 
-  if (!parsed) {
-    throw new Error("Not Trained");
-  }
+  if (!parsed) throw new Error("Not Trained");
 
   // Accept both shapes:
   // 1) { classifier: { features, classifier: { classFeatures, classTotals, totalExamples, smoothing } } }
@@ -41,16 +40,13 @@ async function loadModelIfNeeded() {
   let features, classFeatures, classTotals, totalExamples, smoothing;
 
   const c = parsed.classifier || parsed; // tolerate missing root wrapper
-
   if (c && c.features && c.classifier && c.classifier.classFeatures) {
-    // your current file shape (classifier.classifier.…)
     features = c.features;
     classFeatures = c.classifier.classFeatures;
     classTotals = c.classifier.classTotals;
     totalExamples = c.classifier.totalExamples;
     smoothing = c.classifier.smoothing ?? 1;
   } else if (c && c.features && c.classFeatures) {
-    // flat variant
     features = c.features;
     classFeatures = c.classFeatures;
     classTotals = c.classTotals;
@@ -72,7 +68,6 @@ const STOP = new Set([
 ]);
 
 function lightStem(w) {
-  // very light stem to better match your saved tokens (e.g., "inspection" -> "inspect")
   if (w.endsWith("ing") && w.length > 5) return w.slice(0, -3);
   if (w.endsWith("ed") && w.length > 4) return w.slice(0, -2);
   if (w.endsWith("es") && w.length > 4) return w.slice(0, -2);
@@ -85,11 +80,63 @@ function tokenize(text) {
     .toLowerCase()
     .split(/[^a-z0-9]+/g)
     .filter(Boolean)
-    .filter(t => !STOP.has(t))
+    .filter((t) => !STOP.has(t))
     .map(lightStem);
 }
 
-/* ---------------- scoring ---------------- */
+/* ---------------- domain boost (hybrid rules) ---------------- */
+// Tunable boosts (log-space). Keep modest; the model still leads.
+const BOOST_HIGH = Number(process.env.ML_BOOST_HIGH ?? 1.0);
+const BOOST_CRITICAL = Number(process.env.ML_BOOST_CRITICAL ?? 2.0);
+
+// Patterns with light tags so you can see what fired
+const CRITICAL_RULES = [
+  { rx: /boil[-\s]?water|advisory/, tag: "boil_water_advisory" },
+  { rx: /\b(e\.?\s*coli|fecal (?:coliform)?)\b/, tag: "contamination" },
+  { rx: /\b(sewage (?:overflow|spill)|\bSSO\b)\b/, tag: "sso" },
+  { rx: /\bforce\s+main\b/, tag: "force_main" },
+  { rx: /treatment\s+plant.*(offline|shutdown|down)/, tag: "plant_offline" },
+  { rx: /pressure.*(<\s*20\s*psi|below\s*20\s*psi|under\s*20\s*psi)/, tag: "pressure_below_20psi" },
+  { rx: /\b(sinkhole|road\s+undermined)\b/, tag: "sinkhole" },
+  { rx: /\b(24|30|36|42)(?:-? ?inch|["])?\s*(?:transmission\s+)?main.*(break|rupture)/, tag: "transmission_main_break" },
+  { rx: /no\s+water.*(hospital|school|fire\s+station)/, tag: "critical_facility_outage" },
+  { rx: /chlorine\s+(leak|release|spill)/, tag: "chlorine_release" },
+];
+
+const HIGH_RULES = [
+  { rx: /water\s+main\s+break|major\s+main\s+break/, tag: "water_main_break" },
+  { rx: /\b(major|large)\s+leak\b/, tag: "large_leak" },
+  { rx: /low\s+pressure.*(area|zone|widespread)/, tag: "widespread_low_pressure" },
+  { rx: /pump\s+station\s+(failure|alarm)/, tag: "pump_station" },
+  { rx: /backflow\s+(event|incident)|cross[-\s]?connection/, tag: "backflow_event" },
+  { rx: /valve\s+(failure|stuck\s+(closed|open))/, tag: "valve_failure" },
+  { rx: /road\s+(closure|flooded)/, tag: "road_impact" },
+];
+
+// Apply boosts in-place to the logScores map; return tags that fired
+function applyDomainBoost(rawText, logScores) {
+  const text = (rawText || "").toLowerCase();
+  const tags = [];
+
+  const has = (k) => Object.prototype.hasOwnProperty.call(logScores, k);
+
+  for (const rule of CRITICAL_RULES) {
+    if (rule.rx.test(text)) {
+      if (has("CRITICAL")) logScores.CRITICAL += BOOST_CRITICAL;
+      tags.push(rule.tag);
+    }
+  }
+  for (const rule of HIGH_RULES) {
+    if (rule.rx.test(text)) {
+      if (has("HIGH")) logScores.HIGH += BOOST_HIGH;
+      tags.push(rule.tag);
+    }
+  }
+
+  return tags;
+}
+
+/* ---------------- NB scoring ---------------- */
 function computeClassWordTotals(classFeatures) {
   const totals = {};
   for (const label of Object.keys(classFeatures)) {
@@ -101,7 +148,7 @@ function computeClassWordTotals(classFeatures) {
   return totals;
 }
 
-function classifyTokens(tokens) {
+function classifyTokens(tokens, rawTextForRules) {
   const { features, classFeatures, classTotals, totalExamples, smoothing } = MODEL;
   const vocabSize = Object.keys(features).length;
   const classWordTotals = computeClassWordTotals(classFeatures);
@@ -111,49 +158,55 @@ function classifyTokens(tokens) {
 
   const logScores = {};
   for (const label of labels) {
-    // prior
-    const priorNum = (classTotals[label] ?? 0) + 1; // Laplace on priors
+    // Prior (Laplace on priors; keep your current behavior)
+    const priorNum = (classTotals[label] ?? 0) + 1;
     const priorDen = (totalExamples ?? 1) + labels.length;
     let score = Math.log(priorNum) - Math.log(priorDen);
 
-    // likelihood
+    // Likelihood
     const denom = (classWordTotals[label] ?? 0) + smoothing * vocabSize;
     const cf = classFeatures[label] || {};
 
     for (const tok of tokens) {
       const idx = features[tok];
-      if (idx === undefined) continue; // unseen token; contributes only smoothing term implicitly
+      if (idx === undefined) continue;
       const count = cf[idx] ?? 0;
-      const num = count + smoothing;
-      score += Math.log(num) - Math.log(denom);
+      score += Math.log(count + smoothing) - Math.log(denom);
     }
 
     logScores[label] = score;
   }
 
+  // ---- Hybrid safety net: domain boosts (before softmax) ----
+  const tags = applyDomainBoost(rawTextForRules, logScores);
+
   // softmax for confidence
   const max = Math.max(...Object.values(logScores));
-  const exps = Object.fromEntries(
-    Object.entries(logScores).map(([k, v]) => [k, Math.exp(v - max)])
-  );
+  const exps = Object.fromEntries(Object.entries(logScores).map(([k, v]) => [k, Math.exp(v - max)]));
   const Z = Object.values(exps).reduce((a, b) => a + b, 0) || 1;
-  const probs = Object.fromEntries(
-    Object.entries(exps).map(([k, v]) => [k, v / Z])
-  );
+  const probs = Object.fromEntries(Object.entries(exps).map(([k, v]) => [k, v / Z]));
 
   let best = labels[0];
   for (const l of labels) if (probs[l] > probs[best]) best = l;
 
-  return { label: best, confidence: probs[best] ?? 0 };
+  return { label: best, confidence: probs[best] ?? 0, tags };
 }
 
 /* ---------------- public API ---------------- */
 export async function smartClassify({ title = "", description = "" }) {
   await loadModelIfNeeded();
+
+  const rawText = `${title ?? ""} ${description ?? ""}`.trim();
   const toks = [...tokenize(title), ...tokenize(description)];
-  if (!toks.length) return { priority: "MEDIUM", confidence: 0 }; // neutral fallback
-  const { label, confidence } = classifyTokens(toks);
-  return { priority: label, confidence, inferredType: undefined };
+
+  if (!toks.length) return { priority: "MEDIUM", confidence: 0 };
+
+  const { label, confidence, tags } = classifyTokens(toks, rawText);
+
+  // Show a single representative tag if any fired
+  const inferredType = tags.length ? tags[0] : undefined;
+
+  return { priority: label, confidence, inferredType };
 }
 
 export async function classifyHandler(req, res) {
@@ -165,7 +218,7 @@ export async function classifyHandler(req, res) {
     });
     return res.json({ ok: true, ...result });
   } catch (err) {
-    if (String(err.message || err) === "Not Trained") {
+    if (String(err?.message) === "Not Trained") {
       return res.json({ ok: false, reason: "not_trained" });
     }
     console.error("[ML] classify error:", err);
@@ -176,15 +229,15 @@ export async function classifyHandler(req, res) {
 export async function feedbackHandler(req, res) {
   try {
     const body = req.body || {};
-    // Append lightweight feedback log (optional)
     const dir = path.resolve(__dirname, "../../data");
     await mkdir(dir, { recursive: true });
-    const line = JSON.stringify({
-      ts: new Date().toISOString(),
-      action: body.action,
-      suggested: body.suggested,
-      final: body.final,
-    }) + "\n";
+    const line =
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        action: body.action,
+        suggested: body.suggested,
+        final: body.final,
+      }) + "\n";
     await writeFile(path.join(dir, "ml_feedback.log"), line, { flag: "a" });
     return res.json({ ok: true });
   } catch (err) {

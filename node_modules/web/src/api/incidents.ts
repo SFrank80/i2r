@@ -1,77 +1,125 @@
 // FILE: web/src/api/incidents.ts
-// Small API client used by the Incident form. Exports API_BASE so UI can reuse it.
-
-export const API_BASE: string = (import.meta as ImportMeta)?.env?.VITE_API_BASE ?? "http://localhost:5050";
-
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type IncidentStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
 
-export interface Incident {
+export type Incident = {
   id: number;
   title: string;
-  description?: string | null;
+  description: string | null;
   priority: Priority;
   status: IncidentStatus;
-  assetId?: number | null;
-  lon: number;
-  lat: number;
-  createdAt: string;
-  updatedAt: string;
-}
+  assetId: number | null;
+  lon: number | null;
+  lat: number | null;
+  createdAt: string; // ISO
+};
 
-export interface ListQuery {
+const API_URL =
+  (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:5050";
+
+/* ------------------------------- LIST ------------------------------- */
+export async function listIncidents(opts: {
   q?: string;
-  status?: IncidentStatus[];
-  priority?: Priority[];
-  assetId?: number;
   page?: number;
   pageSize?: number;
-  [key: string]: unknown;
+  assetId?: number;
+}): Promise<{ total: number; items: Incident[] }> {
+  const p = new URLSearchParams();
+  if (opts.q) p.set("q", opts.q);
+  if (opts.assetId) p.set("assetId", String(opts.assetId));
+  p.set("page", String(opts.page ?? 1));
+  p.set("pageSize", String(opts.pageSize ?? 10));
+
+  const r = await fetch(`${API_URL}/incidents?${p.toString()}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
 
-function q(params: Record<string, unknown>): string {
-  const u = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    if (Array.isArray(v)) u.set(k, v.join(","));
-    else u.set(k, String(v));
-  });
-  const s = u.toString();
-  return s ? `?${s}` : "";
-}
-
-async function j<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, init);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export async function listIncidents(params: ListQuery) {
-  return j<{ page: number; pageSize: number; total: number; items: Incident[] }>(
-    `/incidents${q(params)}`
-  );
-}
-
-export async function createIncident(input: Partial<Incident>) {
-  return j<Incident>(`/incidents`, {
+/* ------------------------------ CREATE ------------------------------ */
+export async function createIncident(body: {
+  title: string;
+  description?: string;
+  priority: Priority;
+  status: IncidentStatus;
+  lon?: number | null;
+  lat?: number | null;
+  assetId?: number;
+}): Promise<{ ok: boolean }> {
+  const r = await fetch(`${API_URL}/incidents`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    body: JSON.stringify(body),
   });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
 
-export async function updateIncident(id: number, patch: Partial<Incident>) {
-  return j<Incident>(`/incidents/${id}`, {
+/* ------------------------------ UPDATE ------------------------------ */
+/** Allow description here so the modal can append notes */
+export async function updateIncident(
+  id: number,
+  body: Partial<Pick<Incident, "status" | "assetId" | "description">>
+): Promise<{ ok: boolean }> {
+  const r = await fetch(`${API_URL}/incidents/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
+    body: JSON.stringify(body),
   });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
 
-export async function exportIncidentsCsv(params: ListQuery): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/incidents/export.csv${q(params)}`, {
-    headers: { Accept: "text/csv" },
+/* ------------------------------ EXPORT ------------------------------ */
+export async function exportIncidentsCsv(opts: {
+  q?: string;
+  assetId?: number;
+}): Promise<Blob> {
+  const p = new URLSearchParams();
+  if (opts.q) p.set("q", opts.q);
+  if (opts.assetId) p.set("assetId", String(opts.assetId));
+  const r = await fetch(`${API_URL}/incidents/export.csv?${p.toString()}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.blob();
+}
+
+/* ------------------------------ ML ---------------------------------- */
+export async function classify(text: {
+  title: string;
+  description: string;
+}): Promise<{ priority: Priority; confidence?: number; inferredType?: string }> {
+  const r = await fetch(`${API_URL}/ml/classify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(text),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.blob();
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+export async function mlFeedback(payload: {
+  action: "accept" | "override";
+  suggested: { priority: Priority };
+  final: { priority: Priority };
+}) {
+  try {
+    await fetch(`${API_URL}/ml/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+/* ------------------------------ GEO --------------------------------- */
+export async function geocode(q: string): Promise<{
+  ok: boolean;
+  lat?: number;
+  lon?: number;
+  label?: string;
+}> {
+  const r = await fetch(`${API_URL}/geo/geocode?q=${encodeURIComponent(q)}`);
+  if (!r.ok) return { ok: false };
+  return r.json();
 }
