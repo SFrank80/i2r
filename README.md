@@ -1,4 +1,8 @@
 ![I2R Web Application Image](/full_web_application_zoom_out1.JPG)
+![I2R Web Application Image Pic1](/i2r_project_webpage-pic1.JPG)
+![I2R Web Application Image Pic2](/i2r_project_webpage-pic2.JPG)
+![I2R Web Application Image Pic3](/i2r_project_webpage-pic3.JPG)
+![I2R Web Application Image Pic4](/i2r_project_webpage-pic4.JPG)
 
 ![I2R Multi-Cloud Architecture](/i2r_reference_architecture.png)
 
