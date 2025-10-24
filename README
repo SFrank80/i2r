@@ -1,15 +1,15 @@
+![Full Web Application Image](/full_web_application_zoom_out1.JPG)
+
+![I2R Multi-Cloud Architecture](/i2r_reference_architecture.png)
+
+
 # 🌐 Incident-to-Resolution (I2R) Platform  
 
 ## Multi-Cloud (AWS | Azure) Deployment — SJA Investments LLC
 
 > **Cloud-native incident management system** for utilities and emergency response teams — designed to deploy seamlessly on **AWS** or **Microsoft Azure** using identical Infrastructure-as-Code and CI/CD pipelines.
 
-![Full Web Application Image](/full_web_application_zoom_out1.JPG)
-
-![I2R Multi-Cloud Architecture](/i2r_reference_architecture.png)
-
 ---
-
 ## 🧩 Tech Stack & Core Components
 **Frontend:** React + TypeScript (Vite) | **Backend:** Node.js + Express | Prisma ORM  
 **Database:** PostgreSQL | **Queue:** Redis (BullMQ for SLA jobs) | **IaC:** Terraform · CloudFormation · Bicep  
