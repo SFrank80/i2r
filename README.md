@@ -362,159 +362,168 @@ import MarkerClusterGroup from "@changey/react-leaflet-markercluster";
 ```
 ML_URL=http://localhost:<port#>
 ```
-Optional microservice that classifies incident Type/Priority.
+## 🤖 AI Assist — Intelligent Incident Classification Engine (JavaScript Implementation)
 
-## 🤖 AI Assist — Intelligent Incident Classification Engine
+The **AI Assist** in the I2R Platform is implemented directly in **Node.js** within the `/api/src/ml/` directory.  
+It analyzes incoming incident reports in real time and automatically predicts the **incident priority** and **type**, suggesting them in the web UI for dispatcher review.
 
-The **AI Assist** in the I2R Platform is a microservice module built and trained by **Shameeka Franklin** to automatically **analyze incident descriptions** and **predict incident type and priority level** in real time.  
-It uses natural language processing (NLP) techniques and supervised model training on historical incident data.
+This module was entirely developed and trained by **Shameeka Franklin**, leveraging **Naive Bayes classification** through the `natural` NPM library and custom domain-based rule boosting.
 
 ---
 ### 🧬 AI Assist (Architecture Overview)
 
-The AI Assist operates as a **standalone microservice** deployed alongside the main API.
+The AI engine lives **inside the same Express backend** — no external Python microservice required.
 
-**Workflow:**
-1. A dispatcher submits a new incident via the web form (`incidentform.tsx`).
-2. The backend API sends the incident description text to the AI microservice endpoint defined by:
-   ```env
-   ML_URL=http://localhost:<port#>
-   ```
-3. The AI model returns a JSON response predicting:
+**Flow:**
+1. When a user submits a new incident, the API routes the description and title text to `/api/src/ml/service.js`.
+2. The module loads a pre-trained model (`priority-nb.json`) from `/models/`.
+3. Using a mix of tokenization, light stemming, and Naive Bayes classification, it predicts:
    ```json
    {
-     "predicted_type": "Water Leak",
-     "predicted_priority": "High",
-     "confidence": 0.93
+     "priority": "HIGH",
+     "confidence": 0.92,
+     "inferredType": "water_main_break"
    }
    ```
-4. The prediction is displayed immediately in the web UI as **auto-suggested fields**, allowing the user to accept or override the suggestion before submission.
+4. The result is returned to the frontend (`incidentform.tsx`) to auto-fill the “Priority” and “Type” fields before saving.
 
 ---
+### ⚙️ ML Components
 
-### 🧠 Model Training & Data Pipeline
+#### `api/src/ml/train.js`
+- Reads and cleans a CSV dataset (`data/training.csv`) containing sample incidents and labeled priorities.
+- Automatically detects column names for title, description, and priority.
+- Trains a **Naive Bayes classifier** using `natural.BayesClassifier`.
+- Saves the trained model to `models/priority-nb.json`.
 
-The model was trained using a cleaned dataset of historical incident reports and categorized maintenance records.  
-Key stages in development:
-
-1. **Data Preprocessing**  
-   - Extracted `description`, `incident_type`, and `priority` columns from historical CSV exports.  
-   - Tokenized and normalized text using spaCy and NLTK pipelines.  
-   - Balanced classes through oversampling and label encoding.
-
-2. **Model Training**  
-   - Implemented in a Python training notebook (`/api/ml/train_model.py` or `/ml/` directory).  
-   - Algorithms tested: Logistic Regression, Random Forest, and Multinomial Naive Bayes.  
-   - Final model chosen: **Multinomial Naive Bayes** with TF-IDF vectorization.  
-   - Saved serialized model with `joblib` to `/ml/model.pkl` for reuse.
-
-3. **Model Deployment**  
-   - Deployed as a lightweight **Flask API** (`/api/ml/app.py` or `ml_service.py`) wrapped in a Docker container.  
-   - Exposes endpoint `/predict` that accepts POST requests:
-     ```bash
-     POST /predict
-     { "description": "Water leaking from underground pipe near hydrant" }
-     ```
-   - Returns predicted incident type and priority with confidence score.
-
----
-
-### 🧩 Integration in I2R Backend (Express API)
-
-The main Node.js API calls the Flask AI Assist microservice when creating or updating incidents:
-
-```ts
-// api/src/services/aiAssist.ts
-import axios from "axios";
-
-export async function classifyIncident(description: string) {
-  const mlUrl = process.env.ML_URL || "http://localhost:5055";
-  const response = await axios.post(`${mlUrl}/predict`, { description });
-  return response.data;
-}
+Run training manually:
+```bash
+cd api
+node src/ml/train.js
 ```
 
-This prediction is injected into the `createIncident` flow before saving the record in the PostgreSQL database.
-
----
-
-### 🧭 Environment Configuration
-
-Add the following to your `api/.env` file:
-```env
-ML_URL=http://localhost:5055
-ML_MODEL_PATH=./ml/model.pkl
+If successful, you’ll see:
+```
+[ML] Using training: data/training.csv
+[ML] Training on 1200 examples.
+[ML] Model saved to models/priority-nb.json
 ```
 
-If deployed to ECS or Azure Container Apps, set this environment variable in your task definition or app configuration.
-
 ---
-
-### 🧪 Local Testing
-
-You can test the AI Assist independently before full integration:
-
-1. Start the ML microservice:
-   ```bash
-   docker build -t i2r-ml ./ml
-   docker run -p 5055:5055 i2r-ml
-   ```
-2. Send a test request:
-   ```bash
-   curl -X POST http://localhost:5055/predict -H "Content-Type: application/json"    -d '{"description": "Transformer overheating due to power surge"}'
-   ```
-3. Expected response:
-   ```json
-   { "predicted_type": "Electrical Fault", "predicted_priority": "Critical", "confidence": 0.91 }
-   ```
-
----
-
-### 🧰 Tech Stack
-
-| Component | Description |
-|------------|--------------|
-| **Language** | Python (Flask microservice) |
-| **Libraries** | scikit-learn · pandas · nltk · joblib |
-| **Model Type** | Multinomial Naive Bayes (TF-IDF features) |
-| **API Interface** | REST via `/predict` |
-| **Integration** | Node.js Express middleware |
-| **Containerization** | Docker (exposed <your available port#>) |
+#### `api/src/ml/service.js`
+- Loads the trained model (`priority-nb.json`) when the API starts.
+- Tokenizes new text, applies basic stemming (removes plurals, “ing”, “ed”, etc.).
+- Computes log-probability scores for each class (LOW, MEDIUM, HIGH, CRITICAL).
+- Applies **domain-specific rule boosts** for key phrases like:
+  - “boil water advisory” → CRITICAL
+  - “major leak” → HIGH
+  - “chlorine release” → CRITICAL
+- Returns a final prediction with confidence and inferred tag.
 
 ---
 ### 🔄 Retraining Workflow
 
-When new incident data accumulates, you can retrain the model:
+To update or retrain the model:
 
-```bash
-python ml/train_model.py --data data/incidents.csv --save-path ml/model.pkl
-docker restart i2r-ml
-```
-
-Optionally automate this retraining with a **GitHub Actions workflow** or **Airflow DAG** that retrains weekly and pushes the new model artifact to S3 or Azure Blob Storage.
+1. Add or edit `data/training.csv` (columns: `title, description, priority`).
+2. Run:
+   ```bash
+   node api/src/ml/train.js
+   ```
+3. This creates a new serialized JSON model at `models/priority-nb.json`.
+4. The service automatically reloads the model on the next classification request.
 
 ---
-### 🧩 Example Integration Flow
+### 🌐 Integration in Express API
+
+The backend integrates the AI Assist into incident creation routes:
+
+```js
+// api/src/services/aiAssist.js
+import { smartClassify } from "../ml/service.js";
+
+export async function classifyIncident(req, res) {
+  const { title, description } = req.body;
+  const result = await smartClassify({ title, description });
+  return res.json(result);
+}
+```
+
+This prediction is triggered automatically during new incident creation or editing.
+
+---
+### 🧭 Environment Configuration
+
+Add these to your `api/.env`:
+```env
+ML_ENABLED=true
+ML_MODEL_PATH=./models/priority-nb.json
+ML_BOOST_HIGH=1.0
+ML_BOOST_CRITICAL=2.0
+```
+
+Optional flags like `ML_BOOST_HIGH` and `ML_BOOST_CRITICAL` control how aggressively domain phrases influence predictions.
+
+---
+### 🧪 Testing Locally
+
+Run the server locally:
+```bash
+npm -w api run dev
+```
+
+Send a sample test:
+```bash
+curl -X POST http://localhost:5050/ml/classify   -H "Content-Type: application/json"   -d '{"title": "Major water main break", "description": "24 inch transmission main ruptured"}'
+```
+
+Response:
+```json
+{
+  "priority": "CRITICAL",
+  "confidence": 0.94,
+  "inferredType": "transmission_main_break"
+}
+```
+---
+### 🧰 Technology Stack
+
+| Component | Description |
+|------------|-------------|
+| **Language** | Node.js (ES modules) |
+| **ML Library** | `natural` (Naive Bayes) |
+| **Storage** | JSON model (`models/priority-nb.json`) |
+| **Training Data** | CSV file (`data/training.csv`) |
+| **Integration** | Express middleware (`api/src/ml/service.js`) |
+| **Feature** | Hybrid ML + Rule-based boosting |
+
+---
+### 🧩 Example Flow
 
 ```mermaid
 flowchart TD
-    A[User Submits Incident] --> B[API Receives Request]
-    B --> C[Send Description to AI Assist /predict]
-    C --> D[Model Returns Type & Priority]
-    D --> E[API Saves Incident + AI Prediction to DB]
-    E --> F[UI Displays Auto-Filled Type & Priority]
+    A[Dispatcher Submits Incident] --> B[Express API /ml/service.js]
+    B --> C[Load Model + Tokenize Text]
+    C --> D[Naive Bayes Classification + Domain Boost]
+    D --> E[Return Priority + Confidence]
+    E --> F[Frontend Auto-fills Type & Priority Fields]
 ```
 ---
-### 🧠 Future Enhancements
-- Upgrade to a fine-tuned **BERT-based model** for contextual classification.  
-- Add **confidence-based thresholds** to only auto-fill predictions above 80%.  
-- Integrate a **feedback loop** where dispatcher overrides retrain the model periodically.
+### 🧠 Feedback Logging
+
+Every classification feedback is appended to `data/ml_feedback.log` when dispatchers correct AI predictions in the UI.  
+This file can later be used to retrain the model and improve accuracy over time.
 
 ---
-**In summary:**  
-Your AI Assist in I2R acts as a **self-contained, deployable ML microservice** that uses NLP to predict incident attributes on the fly, reducing dispatcher workload and improving classification accuracy across the platform.
+### 🔒 Notes
+- The model supports **incremental retraining** — you can append new examples and re-run `train.js` anytime.
+- The system defaults to **MEDIUM** if confidence is below 0.5 or the text is too short.
+- Critical incidents (pressure below 20 PSI, treatment plant offline, chlorine release, etc.) are explicitly boosted.
 
 ---
+### ✅ Summary
+The **AI Assist (JS Version)** brings built-in intelligence to the I2R incident workflow — blending a trained Naive Bayes classifier with lightweight domain heuristics to predict priority and type in milliseconds, directly within the Node.js backend.
+
 
 ## 7️⃣ Production Build
 ```bash
