@@ -204,6 +204,160 @@ Restart the API — new incidents now create matching ServiceNow tickets.
 ### ArcGIS
 Set your `VITE_ARCGIS_TOKEN` and `VITE_ARCGIS_LAYERS` URLs, then restart the web client.
 
+## 🗺️ Free Map Option — Leaflet + OpenStreetMap (No Subscription)
+
+Use this as an alternative if you don’t want to pay for ArcGIS basemaps. It sets up **Leaflet** with **OpenStreetMap** (OSM) tiles by default, and keeps ArcGIS optional.
+
+### 0) What you get
+- 100% free basemap using the public OSM tile servers (fair-use; see notes below)
+- Works with our existing React + Vite setup
+- Can still overlay incidents, assets (GeoJSON), and clusters
+- Auto-fallback: **if no ArcGIS token is provided, we use OSM tiles**
+
+---
+
+### 1) Install Leaflet (and React bindings)
+
+From the repo root:
+```bash
+npm -w web i leaflet react-leaflet
+npm -w web i -D @types/leaflet   # TypeScript projects
+```
+
+Import Leaflet CSS once, e.g. in `web/src/main.tsx` or `web/src/index.css`:
+```ts
+import "leaflet/dist/leaflet.css";
+```
+
+If default marker icons don’t appear, copy Leaflet’s marker PNGs into `public/` or set icon URLs explicitly in code. (Many Vite setups work out of the box.)
+
+---
+
+### 2) Add env vars for a free basemap
+
+Create or update `web/.env`:
+```env
+# Leave ArcGIS empty to use free OSM automatically
+VITE_ARCGIS_TOKEN=
+VITE_ARCGIS_LAYERS=
+
+# Free OSM basemap (recommended defaults)
+VITE_BASEMAP_URL=https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+VITE_BASEMAP_ATTRIBUTION=&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors
+```
+
+You can swap `VITE_BASEMAP_URL` to other free/low-cost providers (Carto, Stamen, Maptiler free tier, Stadia Maps). Check each provider’s terms/keys.
+
+---
+
+### 3) Map component with automatic fallback
+
+Create `web/src/components/Map.tsx`:
+
+```tsx
+import { MapContainer, TileLayer, Marker, Popup, GeoJSON } from "react-leaflet";
+import { LatLngExpression } from "leaflet";
+
+const ARCGIS_TOKEN = import.meta.env.VITE_ARCGIS_TOKEN as string | undefined;
+const ARCGIS_LAYERS = (import.meta.env.VITE_ARCGIS_LAYERS as string | undefined)?.split(",") ?? [];
+
+const BASEMAP_URL = import.meta.env.VITE_BASEMAP_URL || "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const BASEMAP_ATTRIBUTION =
+  import.meta.env.VITE_BASEMAP_ATTRIBUTION ||
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+const CENTER: LatLngExpression = [39.2904, -76.6122];
+const ZOOM = 11;
+
+type Props = {
+  incidents?: Array<{ id: number; title: string; lat: number; lon: number }>;
+  assetsGeoJSON?: GeoJSON.FeatureCollection;
+};
+
+export default function Map({ incidents = [], assetsGeoJSON }: Props) {
+  return (
+    <MapContainer center={CENTER} zoom={ZOOM} style={{ height: "60vh", width: "100%" }}>
+      {(!ARCGIS_TOKEN || ARCGIS_LAYERS.length === 0) ? (
+        <TileLayer url={BASEMAP_URL} attribution={BASEMAP_ATTRIBUTION} />
+      ) : (
+        <TileLayer url={BASEMAP_URL} attribution={BASEMAP_ATTRIBUTION} />
+      )}
+
+      {incidents.map((i) => (
+        <Marker key={i.id} position={[i.lat, i.lon] as LatLngExpression}>
+          <Popup>
+            <strong>{i.title}</strong><br />
+            lat: {i.lat.toFixed(4)}, lon: {i.lon.toFixed(4)}
+          </Popup>
+        </Marker>
+      ))}
+
+      {assetsGeoJSON && <GeoJSON data={assetsGeoJSON as any} />}
+    </MapContainer>
+  );
+}
+```
+
+Use this component anywhere in the UI, e.g. `web/src/pages/Operations.tsx`:
+```tsx
+import Map from "@/components/Map";
+import { useEffect, useState } from "react";
+
+export default function Operations() {
+  const [incidents, setIncidents] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_BASE}/incidents`)
+      .then(r => r.json())
+      .then(setIncidents)
+      .catch(() => setIncidents([]));
+  }, []);
+
+  return (
+    <div className="p-4">
+      <h2 className="text-xl font-semibold mb-2">Operations Map</h2>
+      <Map incidents={incidents} />
+    </div>
+  );
+}
+```
+
+Restart the web app:
+```bash
+npm -w web run dev
+```
+
+If `VITE_ARCGIS_TOKEN` is blank, you’ll see **OpenStreetMap** tiles for free.
+
+---
+
+### 4) Optional: Marker clustering & performance
+
+For dense cities, add clustering:
+
+```bash
+npm -w web i @changey/react-leaflet-markercluster
+```
+
+Then wrap incident markers with the cluster component:
+```tsx
+import MarkerClusterGroup from "@changey/react-leaflet-markercluster";
+<MarkerClusterGroup chunkedLoading>
+  {incidents.map(/* same Marker code as above */)}
+</MarkerClusterGroup>
+```
+
+---
+
+### 5) Important notes on OSM tile usage (be a good citizen)
+
+- Public OSM tiles are **community-run**. Avoid heavy/prod traffic directly against them.  
+- Cache tiles via your CDN/edge if possible, throttle requests, and **keep attribution visible**.  
+- For higher SLAs: use a free-tier/low-cost provider (e.g., Maptiler, Stadia Maps, Carto) with your own API key and CDN.
+
+---
+
+
 ### AI Assist
 ```
 ML_URL=http://localhost:<port#>
