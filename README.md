@@ -364,6 +364,156 @@ ML_URL=http://localhost:<port#>
 ```
 Optional microservice that classifies incident Type/Priority.
 
+## 🤖 AI Assist — Intelligent Incident Classification Engine
+
+The **AI Assist** in the I2R Platform is a microservice module built and trained by **Shameeka Franklin** to automatically **analyze incident descriptions** and **predict incident type and priority level** in real time.  
+It uses natural language processing (NLP) techniques and supervised model training on historical incident data.
+
+---
+### 🧬 AI Assist (Architecture Overview)
+
+The AI Assist operates as a **standalone microservice** deployed alongside the main API.
+
+**Workflow:**
+1. A dispatcher submits a new incident via the web form (`incidentform.tsx`).
+2. The backend API sends the incident description text to the AI microservice endpoint defined by:
+   ```env
+   ML_URL=http://localhost:<port#>
+   ```
+3. The AI model returns a JSON response predicting:
+   ```json
+   {
+     "predicted_type": "Water Leak",
+     "predicted_priority": "High",
+     "confidence": 0.93
+   }
+   ```
+4. The prediction is displayed immediately in the web UI as **auto-suggested fields**, allowing the user to accept or override the suggestion before submission.
+
+---
+
+### 🧠 Model Training & Data Pipeline
+
+The model was trained using a cleaned dataset of historical incident reports and categorized maintenance records.  
+Key stages in development:
+
+1. **Data Preprocessing**  
+   - Extracted `description`, `incident_type`, and `priority` columns from historical CSV exports.  
+   - Tokenized and normalized text using spaCy and NLTK pipelines.  
+   - Balanced classes through oversampling and label encoding.
+
+2. **Model Training**  
+   - Implemented in a Python training notebook (`/api/ml/train_model.py` or `/ml/` directory).  
+   - Algorithms tested: Logistic Regression, Random Forest, and Multinomial Naive Bayes.  
+   - Final model chosen: **Multinomial Naive Bayes** with TF-IDF vectorization.  
+   - Saved serialized model with `joblib` to `/ml/model.pkl` for reuse.
+
+3. **Model Deployment**  
+   - Deployed as a lightweight **Flask API** (`/api/ml/app.py` or `ml_service.py`) wrapped in a Docker container.  
+   - Exposes endpoint `/predict` that accepts POST requests:
+     ```bash
+     POST /predict
+     { "description": "Water leaking from underground pipe near hydrant" }
+     ```
+   - Returns predicted incident type and priority with confidence score.
+
+---
+
+### 🧩 Integration in I2R Backend (Express API)
+
+The main Node.js API calls the Flask AI Assist microservice when creating or updating incidents:
+
+```ts
+// api/src/services/aiAssist.ts
+import axios from "axios";
+
+export async function classifyIncident(description: string) {
+  const mlUrl = process.env.ML_URL || "http://localhost:5055";
+  const response = await axios.post(`${mlUrl}/predict`, { description });
+  return response.data;
+}
+```
+
+This prediction is injected into the `createIncident` flow before saving the record in the PostgreSQL database.
+
+---
+
+### 🧭 Environment Configuration
+
+Add the following to your `api/.env` file:
+```env
+ML_URL=http://localhost:5055
+ML_MODEL_PATH=./ml/model.pkl
+```
+
+If deployed to ECS or Azure Container Apps, set this environment variable in your task definition or app configuration.
+
+---
+
+### 🧪 Local Testing
+
+You can test the AI Assist independently before full integration:
+
+1. Start the ML microservice:
+   ```bash
+   docker build -t i2r-ml ./ml
+   docker run -p 5055:5055 i2r-ml
+   ```
+2. Send a test request:
+   ```bash
+   curl -X POST http://localhost:5055/predict -H "Content-Type: application/json"    -d '{"description": "Transformer overheating due to power surge"}'
+   ```
+3. Expected response:
+   ```json
+   { "predicted_type": "Electrical Fault", "predicted_priority": "Critical", "confidence": 0.91 }
+   ```
+
+---
+
+### 🧰 Tech Stack
+
+| Component | Description |
+|------------|--------------|
+| **Language** | Python (Flask microservice) |
+| **Libraries** | scikit-learn · pandas · nltk · joblib |
+| **Model Type** | Multinomial Naive Bayes (TF-IDF features) |
+| **API Interface** | REST via `/predict` |
+| **Integration** | Node.js Express middleware |
+| **Containerization** | Docker (exposed <your available port#>) |
+
+---
+### 🔄 Retraining Workflow
+
+When new incident data accumulates, you can retrain the model:
+
+```bash
+python ml/train_model.py --data data/incidents.csv --save-path ml/model.pkl
+docker restart i2r-ml
+```
+
+Optionally automate this retraining with a **GitHub Actions workflow** or **Airflow DAG** that retrains weekly and pushes the new model artifact to S3 or Azure Blob Storage.
+
+---
+### 🧩 Example Integration Flow
+
+```mermaid
+flowchart TD
+    A[User Submits Incident] --> B[API Receives Request]
+    B --> C[Send Description to AI Assist /predict]
+    C --> D[Model Returns Type & Priority]
+    D --> E[API Saves Incident + AI Prediction to DB]
+    E --> F[UI Displays Auto-Filled Type & Priority]
+```
+---
+### 🧠 Future Enhancements
+- Upgrade to a fine-tuned **BERT-based model** for contextual classification.  
+- Add **confidence-based thresholds** to only auto-fill predictions above 80%.  
+- Integrate a **feedback loop** where dispatcher overrides retrain the model periodically.
+
+---
+**In summary:**  
+Your AI Assist in I2R acts as a **self-contained, deployable ML microservice** that uses NLP to predict incident attributes on the fly, reducing dispatcher workload and improving classification accuracy across the platform.
+
 ---
 
 ## 7️⃣ Production Build
