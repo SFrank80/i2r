@@ -1,6 +1,7 @@
 // FILE: api/src/routes/incidents.js
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { onIncidentCreated, onIncidentUpdated } from "../integrations/snow/hooks.js";
 
 // --- Prisma singleton (prevents too many clients on nodemon hot reload) ---
 const prisma = globalThis.__prisma ?? new PrismaClient();
@@ -9,9 +10,7 @@ if (!globalThis.__prisma) globalThis.__prisma = prisma;
 const router = Router();
 
 /* ------------------------------- helpers ------------------------------- */
-
-const toNum = (v, def = undefined) => {
-  if (v === null || v === undefined || v === "") return def;
+const toInt = (v, def = undefined) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
 };
@@ -30,7 +29,7 @@ function buildWhere({ q, assetId }) {
   };
 }
 
-// lightweight CSV escaper
+// lightweight CSV escaper (handles quotes & newlines)
 function csvEscape(v) {
   if (v === null || v === undefined) return "";
   const s = String(v);
@@ -41,10 +40,10 @@ function csvEscape(v) {
 // GET /incidents?page=&pageSize=&q=&assetId=
 router.get("/", async (req, res) => {
   try {
-    const page = Math.max(1, toNum(req.query.page, 1));
-    const pageSize = Math.max(1, Math.min(1000, toNum(req.query.pageSize, 10)));
+    const page = Math.max(1, toInt(req.query.page, 1));
+    const pageSize = Math.max(1, Math.min(1000, toInt(req.query.pageSize, 10)));
     const q = (req.query.q || "").toString().trim();
-    const assetId = toNum(req.query.assetId);
+    const assetId = toInt(req.query.assetId);
 
     const where = buildWhere({ q, assetId });
 
@@ -65,11 +64,48 @@ router.get("/", async (req, res) => {
           lon: true,
           lat: true,
           createdAt: true,
+          updatedAt: true,
         },
       }),
     ]);
 
     res.json({ total, items: rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, reason: "internal_error" });
+  }
+});
+
+/* ------------------------------- READ ONE ------------------------------ */
+// GET /incidents/:id
+router.get("/:id", async (req, res) => {
+  try {
+    const idNum = Number(req.params.id);
+    if (!Number.isFinite(idNum) || idNum <= 0) {
+      return res.status(400).json({ ok: false, reason: "bad_id" });
+    }
+
+    const incident = await prisma.incident.findUnique({
+      where: { id: idNum },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        priority: true,
+        status: true,
+        assetId: true,
+        lon: true,
+        lat: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!incident) {
+      return res.status(404).json({ ok: false, reason: "incident_not_found" });
+    }
+
+    res.json({ ok: true, incident });
   } catch (e) {
     console.error(e);
     res.status(500).json({ ok: false, reason: "internal_error" });
@@ -94,15 +130,18 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ ok: false, reason: "missing_fields" });
     }
 
-    const lonNum = toNum(lon, null);
-    const latNum = toNum(lat, null);
-    const assetIdNum = toNum(assetId);
+    const lonNum = lon === undefined || lon === null ? null : toInt(lon, null);
+    const latNum = lat === undefined || lat === null ? null : toInt(lat, null);
+    const assetIdNum =
+      assetId === undefined || assetId === null || assetId === ""
+        ? undefined
+        : toInt(assetId);
 
     const data = {
       title,
       description,
       priority, // "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
-      status, // "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
+      status,   // "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
       lon: lonNum,
       lat: latNum,
       ...(assetIdNum ? { asset: { connect: { id: assetIdNum } } } : {}),
@@ -110,40 +149,37 @@ router.post("/", async (req, res) => {
 
     const incident = await prisma.incident.create({ data });
     res.status(201).json({ ok: true, incident });
+
+    // Fan-out to ServiceNow (fire-and-forget; errors are logged in the hook)
+    onIncidentCreated(incident).catch((e) =>
+      console.warn("[snow] create hook failed:", e?.message || e)
+    );
   } catch (e) {
     console.error(e);
     res.status(500).json({ ok: false, reason: "internal_error" });
   }
 });
 
-/* ---------------------- UPDATE (status / asset / description) ---------- */
-// PATCH /incidents/:id
+/* -------------------- UPDATE (status and/or asset) -------------------- */
 router.patch("/:id", async (req, res) => {
   try {
-    const idNum = toNum(req.params.id);
-    if (!idNum) {
+    const idNum = Number(req.params.id);
+    if (!Number.isFinite(idNum) || idNum <= 0) {
       return res.status(400).json({ ok: false, reason: "bad_id" });
     }
 
-    const { status, assetId, description } = req.body ?? {};
+    const { status, assetId } = req.body ?? {};
     const data = {};
 
-    // status (optional)
     if (typeof status === "string" && status.length) {
-      data.status = status;
+      data.status = status; // "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
     }
 
-    // description append/replace (optional)
-    if (typeof description === "string") {
-      data.description = description;
-    }
-
-    // asset change (optional)
     if (assetId === null || assetId === "null") {
-      data.assetId = null;
+      data.assetId = null; // clear assignment
     } else if (assetId !== undefined) {
-      const assetIdNum = toNum(assetId);
-      if (!assetIdNum) {
+      const assetIdNum = Number(assetId);
+      if (!Number.isFinite(assetIdNum) || assetIdNum <= 0) {
         return res.status(400).json({ ok: false, reason: "bad_asset_id" });
       }
       const asset = await prisma.asset.findUnique({ where: { id: assetIdNum } });
@@ -163,6 +199,11 @@ router.patch("/:id", async (req, res) => {
     });
 
     res.json({ ok: true, incident });
+
+    // Fan-out to ServiceNow (fire-and-forget)
+    onIncidentUpdated(incident).catch((e) =>
+      console.warn("[snow] update hook failed:", e?.message || e)
+    );
   } catch (e) {
     if (e?.code === "P2025") {
       return res.status(404).json({ ok: false, reason: "incident_not_found" });
@@ -175,92 +216,44 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
-/* ------------------------------ CSV export ----------------------------- */
+/* -------------------- CSV export -------------------- */
 // GET /incidents/export.csv?q=&assetId=
-// ignore any other params so the client can't 400 this by accident
 router.get("/export.csv", async (req, res) => {
   try {
     const q = (req.query.q || "").toString().trim();
-    const assetId = toNum(req.query.assetId);
+    const assetId = toInt(req.query.assetId);
 
     const where = buildWhere({ q, assetId });
 
     const rows = await prisma.incident.findMany({
       where,
       orderBy: { id: "desc" },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        priority: true,
-        status: true,
-        assetId: true,
-        lon: true,
-        lat: true,
-        createdAt: true,
-      },
+      select: { id: true, title: true, priority: true, status: true, assetId: true },
     });
 
-    const headers = [
-      "id",
-      "title",
-      "description",
-      "priority",
-      "status",
-      "assetId",
-      "lon",
-      "lat",
-      "createdAt",
-    ];
-
-    const lines = [
-      headers.join(","),
-      ...rows.map((r) =>
-        [
-          r.id,
-          csvEscape(r.title ?? ""),
-          csvEscape(r.description ?? ""),
-          r.priority,
-          r.status,
-          r.assetId ?? "",
-          r.lon ?? "",
-          r.lat ?? "",
-          r.createdAt ? new Date(r.createdAt).toISOString() : "",
-        ].join(","),
-      ),
-    ];
+    const header = "id,title,priority,status,assetId";
+    const body = rows
+      .map((r) => `${r.id},"${(r.title || "").replaceAll('"', '""')}",${r.priority},${r.status},${r.assetId ?? ""}`)
+      .join("\n");
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", 'attachment; filename="incidents.csv"');
-    res.send(lines.join("\n"));
+    res.send(`${header}\n${body}`);
   } catch (e) {
     console.error(e);
     res.status(500).end();
   }
 });
 
-/* -------------------- GeoJSON export (for map) ------------------------- */
-// GET /incidents/geojson
-router.get("/geojson", async (req, res) => {
+/* -------------------- GeoJSON export (kept) -------------------- */
+router.get("/geojson", async (_req, res) => {
   try {
-    const q = String(req.query.q ?? "").trim();
-    const assetId = toNum(req.query.assetId);
-
-    const where = buildWhere({ q, assetId });
-
     const rows = await prisma.incident.findMany({
-      where,
       orderBy: { id: "asc" },
       select: {
-        id: true,
-        title: true,
-        description: true,
-        priority: true,
-        status: true,
-        lon: true,
-        lat: true,
-        assetId: true,
-        createdAt: true,
+        id: true, title: true, description: true,
+        priority: true, status: true, lon: true, lat: true,
+        assetId: true, createdAt: true,
       },
     });
 
@@ -271,12 +264,8 @@ router.get("/geojson", async (req, res) => {
         id: r.id,
         geometry: { type: "Point", coordinates: [Number(r.lon), Number(r.lat)] },
         properties: {
-          id: r.id,
-          title: r.title ?? "",
-          description: r.description ?? "",
-          priority: r.priority,
-          status: r.status,
-          assetId: r.assetId,
+          id: r.id, title: r.title ?? "", description: r.description ?? "",
+          priority: r.priority, status: r.status, assetId: r.assetId,
           createdAt: r.createdAt?.toISOString?.() ?? null,
         },
       }));
